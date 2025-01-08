@@ -1,10 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Budget.API.Models.RequestModels;
+using Microsoft.AspNetCore.Mvc;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
 namespace Budget.API.Controllers;
 
-[Route("budget/[controller]")]
+[Route("budget/expenses")]
 [ApiController]
 public class ExpensesController : ControllerBase
 {
@@ -22,10 +23,10 @@ public class ExpensesController : ControllerBase
         return "value";
     }
 
-    // POST api/<ExpensesController>
     [HttpPost]
-    public void Post([FromBody] string value)
+    public void Post([FromBody] AddExpensesRequestModel request)
     {
+
     }
 
     // PUT api/<ExpensesController>/5
