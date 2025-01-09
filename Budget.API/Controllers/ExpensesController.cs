@@ -1,7 +1,7 @@
-﻿using Budget.API.Models.RequestModels;
+﻿using Budget.API.Models;
+using Budget.API.Services;
+using Budget.API.Models.RequestModels;
 using Microsoft.AspNetCore.Mvc;
-
-// For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
 namespace Budget.API.Controllers;
 
@@ -9,35 +9,21 @@ namespace Budget.API.Controllers;
 [ApiController]
 public class ExpensesController : ControllerBase
 {
-    // GET: api/<ExpensesController>
-    [HttpGet]
-    public IEnumerable<string> Get()
-    {
-        return new string[] { "value1", "value2" };
-    }
+    private readonly ExpensesService _expensesService;
 
-    // GET api/<ExpensesController>/5
-    [HttpGet("{id}")]
-    public string Get(int id)
+    public ExpensesController(ExpensesService expensesService)
     {
-        return "value";
+        _expensesService = expensesService;
     }
 
     [HttpPost]
-    public void Post([FromBody] AddExpensesRequestModel request)
+    public async Task<ActionResult<ResponseModel<StatusResponseData, IError>>> AddExpenses([FromBody] AddExpensesRequestModel request)
     {
+        await _expensesService.AddExpense(request);
 
-    }
-
-    // PUT api/<ExpensesController>/5
-    [HttpPut("{id}")]
-    public void Put(int id, [FromBody] string value)
-    {
-    }
-
-    // DELETE api/<ExpensesController>/5
-    [HttpDelete("{id}")]
-    public void Delete(int id)
-    {
+        return Ok(new ResponseModel<StatusResponseData, IError>()
+        {
+            Data = new StatusResponseData("Expenses added successfully")
+        });
     }
 }

@@ -1,4 +1,5 @@
-﻿using Budget.API.Models.RequestModels;
+﻿using Budget.API.Models;
+using Budget.API.Models.RequestModels;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Budget.API.Controllers;
@@ -8,8 +9,13 @@ namespace Budget.API.Controllers;
 public class IncomeController : ControllerBase
 {
     [HttpPost]
-    public void Post([FromBody] AddIncomeRequestModel request)
+    public async Task<ActionResult<ResponseModel<StatusResponseData, IError>>> AddIncome([FromBody] AddIncomeRequestModel request)
     {
 
+
+        return Ok(new ResponseModel<StatusResponseData, IError>()
+        {
+            Data = new StatusResponseData("Income added successfully")
+        });
     }
 }

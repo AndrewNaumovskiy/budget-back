@@ -1,0 +1,20 @@
+meta {
+  name: AddIncome
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{IP}}/budget/income
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "date": "2025-01-08T18:28:47.581Z",
+    "account": 1,
+    "amount": 274.42,
+    "description": "Вареники, пельмені"
+  }
+}

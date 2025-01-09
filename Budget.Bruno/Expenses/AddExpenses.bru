@@ -1,0 +1,21 @@
+meta {
+  name: AddExpenses
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{IP}}/budget/expenses
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "date": "2025-01-08T18:28:47.581Z",
+    "accountId": 1,
+    "categoryId": 1,
+    "amount": 274.42,
+    "description": "Вареники, пельмені"
+  }
+}
