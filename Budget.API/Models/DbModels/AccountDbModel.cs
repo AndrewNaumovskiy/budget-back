@@ -9,6 +9,5 @@ public class AccountDbModel
     public string Name { get; set; }
     public double Balance { get; set; }
 
-    public List<IncomeDbModel> Incomes { get; set; }
-    public List<ExpenseDbModel> Expenses { get; set; }
+    public List<TransactionDbModel> Transactions { get; set; } = [];
 }

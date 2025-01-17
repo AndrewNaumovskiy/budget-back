@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Budget.API.Controllers;
 
-[Route("budget/income")]
+[Route("apibudget/income")]
 [ApiController]
 public class IncomeController : ControllerBase
 {

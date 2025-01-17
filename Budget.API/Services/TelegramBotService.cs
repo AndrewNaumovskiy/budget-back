@@ -1,6 +1,8 @@
 ﻿using Budget.API.Models.RequestModels;
+using System.Globalization;
 using System.Threading;
 using Telegram.Bot;
+using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -13,12 +15,18 @@ public enum BotState
 
     BalanceMenu,
 
+    AddEntry,
+    ViewEntries,
+
     EnterExpenses,
     EnterExpensesCategory,
+    EnterExpensesSubCategory,
     EnterExpensesAccount,
     EnterExpensesDesc,
 
-    EnterIncome
+    EnterIncome,
+
+    ViewExpenses
 }
 
 public class TelegramBotService : IAsyncDisposable
@@ -27,18 +35,25 @@ public class TelegramBotService : IAsyncDisposable
     const int MyUserId = 290597767;
     private readonly TelegramBotClient _bot;
 
-    private readonly ExpensesService _expensesService;
+    private readonly ExpenseService _expensesService;
+    private readonly BalanceService _balanceService;
 
     private BotState _state = BotState.MainMenu;
 
     private double _amount;
     private int _accountId;
-    private int _categoryId;
+    private int _subCategoryId;
     private string _description;
 
-    public TelegramBotService(ExpensesService expensesService)
+    private string _accountName;
+    private string _subCategoryName;
+
+    public TelegramBotService(
+        ExpenseService expensesService,
+        BalanceService balanceService)
     {
         _expensesService = expensesService;
+        _balanceService = balanceService;
 
         _bot = new TelegramBotClient(BotToken);
         
@@ -48,8 +63,18 @@ public class TelegramBotService : IAsyncDisposable
     private async Task RunBot()
     {
         using var cts = new CancellationTokenSource();
-        
-        _bot.StartReceiving(updateHandler: HandleMessages, errorHandler: HandleError, cancellationToken: cts.Token);
+
+        ReceiverOptions options = new ReceiverOptions()
+        {
+            AllowedUpdates = new[]
+            {
+                UpdateType.Message, UpdateType.CallbackQuery
+            },
+            // not process messages while stopped
+            DropPendingUpdates = true
+        };
+
+        _bot.StartReceiving(updateHandler: HandleMessages, errorHandler: HandleError, options, cancellationToken: cts.Token);
 
         await _bot.SetMyCommands(
             new[]
@@ -78,13 +103,39 @@ public class TelegramBotService : IAsyncDisposable
                             await TestInline(update, cancellationToken);
                             break;
 
+                        #region MainMenu
                         case TelegramKeyboards.Balance:
-                            await OpenBalanceMenu(cancellationToken);
+                            await OpenBalanceMenu(cancellationToken, true);
+                            break;
+
+                        case TelegramKeyboards.AddEntry:
+                            await OpenAddEntryMenu(cancellationToken);
+                            break;
+
+                        case TelegramKeyboards.ViewEntrie:
+                            await OpenViewEntriesMenu(cancellationToken);
+                            break;
+                        #endregion
+
+                        #region BalanceMenu
+                        case TelegramKeyboards.ShowInUsd:
+                            await OpenBalanceMenu(cancellationToken, false);
+                            break;
+
+                        case TelegramKeyboards.NetWorth:
+                            await _bot.SendMessage(MyUserId, "Net worth", cancellationToken: cancellationToken);
                             break;
 
                         case TelegramKeyboards.EnterExpenses:
                             await HandleEnterExpenses(cancellationToken);
                             break;
+                        #endregion
+
+                        #region ViewEntriesMenu
+                            case TelegramKeyboards.ViewExpenses:
+                            await OpenViewExpensesMenu(cancellationToken);
+                            break;
+                        #endregion
 
                         case TelegramKeyboards.Back:
                             await HandleBack(cancellationToken);
@@ -135,17 +186,24 @@ public class TelegramBotService : IAsyncDisposable
         await _bot.SendMessage(MyUserId, "Main Menu", replyMarkup: TelegramKeyboards.MainMenuKeyboard(), cancellationToken: cancellationToken);
     }
 
-    public async Task OpenBalanceMenu(CancellationToken cancellationToken)
+    public async Task OpenBalanceMenu(CancellationToken cancellationToken, bool inUah = true)
     {
         _state = BotState.BalanceMenu;
-        const int Balance = 1000;
-        await _bot.SendMessage(MyUserId, $"Your balance is {Balance}", replyMarkup: TelegramKeyboards.BalanceMenuKeyboard(), cancellationToken: cancellationToken);
+        var balance = await _balanceService.GetBalance(inUah);
+        var balanceMessage = $"🌟 *My Balances* 🌟\n\n💳 *UkrSib*: {balance.UkrSib}\n\n🏧 *Privat*: {balance.Privat}\n\n💵 *Cash*: {balance.Cash}\n\n📈 *Total*: *{balance.Total}*";
+        await _bot.SendMessage(MyUserId, balanceMessage, parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.BalanceMenuKeyboard(), cancellationToken: cancellationToken);
     }
 
-    public async Task HandleEnterExpenses(CancellationToken cancellationToken)
+    public async Task OpenAddEntryMenu(CancellationToken cancellationToken)
     {
-        _state = BotState.EnterExpenses;
-        await _bot.SendMessage(MyUserId, $"Enter amount", replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+        _state = BotState.AddEntry;
+        await _bot.SendMessage(MyUserId, "Add Entry", replyMarkup: TelegramKeyboards.AddEntryMenuKeyboard(), cancellationToken: cancellationToken);
+    }
+
+    public async Task OpenViewEntriesMenu(CancellationToken cancellationToken)
+    {
+        _state = BotState.ViewEntries;
+        await _bot.SendMessage(MyUserId, "View Entries", replyMarkup: TelegramKeyboards.ViewEntriesMenuKeyboard(), cancellationToken: cancellationToken);
     }
 
     public async Task HandleBack(CancellationToken cancellationToken)
@@ -153,6 +211,9 @@ public class TelegramBotService : IAsyncDisposable
         switch (_state)
         {
             case BotState.BalanceMenu:
+            case BotState.AddEntry:
+            case BotState.ViewEntries:
+            case BotState.ViewExpenses:
                 await OpenMainMenu(cancellationToken);
                 break;
         }
@@ -164,11 +225,16 @@ public class TelegramBotService : IAsyncDisposable
         {
             case BotState.MainMenu:
                 return;
+
+            #region AddExpenses
             case BotState.EnterExpenses: // entered amount of money
                 await HandleEnterExpensesAmount(update, cancellationToken);
                 break;
             case BotState.EnterExpensesCategory: // entered category
                 await HandleEnterExpensesCategory(update, cancellationToken);
+                break;
+            case BotState.EnterExpensesSubCategory: // entered sub category
+                await HandleEnterExpensesSubCategory(update, cancellationToken);
                 break;
             case BotState.EnterExpensesAccount: // entered account
                 await HandleEnterExpensesAccount(update, cancellationToken);
@@ -176,27 +242,54 @@ public class TelegramBotService : IAsyncDisposable
             case BotState.EnterExpensesDesc: // entered description
                 await HandleEnterExpensesDesc(update, cancellationToken);
                 break;
+                #endregion
         }
+    }
+    #region AddExpenses
+    public async Task HandleEnterExpenses(CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterExpenses;
+        const string message = "💵 Please enter the amount of your expense:";
+        await _bot.SendMessage(MyUserId, message, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
     }
 
     private async Task HandleEnterExpensesAmount(Update update, CancellationToken cancellationToken)
     {
         _state = BotState.EnterExpensesCategory;
 
-        _amount = double.Parse(update.Message.Text.Replace('.', ','));
+        if (!double.TryParse(update.Message.Text.Replace('.',','), out _amount))
+        {
+            await OpenMainMenu(cancellationToken);
+            return;
+        }
+        
+        var categories = _expensesService.GetCategories();
 
-        var categories = await _expensesService.GetCategories();
-        await _bot.SendMessage(MyUserId, "Enter category", replyMarkup: TelegramKeyboards.ExpensesCategoryKeyboard(categories), cancellationToken: cancellationToken);
+        const string message = "📂 Now, choose a category for this expense:";
+        await _bot.SendMessage(MyUserId, message, replyMarkup: TelegramKeyboards.ExpensesCategoryKeyboard(categories), cancellationToken: cancellationToken);
     }
 
     private async Task HandleEnterExpensesCategory(Update update, CancellationToken cancellationToken)
     {
+        _state = BotState.EnterExpensesSubCategory;
+
+        var category = update.Message.Text;
+        var subCategories = _expensesService.GetSubCategories(category);
+
+        const string message = "📂 Now, choose a subcategory for this expense:";
+        await _bot.SendMessage(MyUserId, message, replyMarkup: TelegramKeyboards.ExpensesCategoryKeyboard(subCategories), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleEnterExpensesSubCategory(Update update, CancellationToken cancellationToken)
+    {
         _state = BotState.EnterExpensesAccount;
 
-        // TODO: find better approach
-        _categoryId = (await _expensesService.GetCategories()).IndexOf(update.Message.Text);
+        _subCategoryName = update.Message.Text;
+        _subCategoryId = _expensesService.GetCategoryIdByName(_subCategoryName);
 
-        var accounts = await _expensesService.GetAccounts();
+        var accounts = _expensesService.GetAccounts();
+
+        const string message = "🏦 Which account should this expense be deducted from?";
         await _bot.SendMessage(MyUserId, "Enter account", replyMarkup: TelegramKeyboards.ExpensesAccountKeyboard(accounts), cancellationToken: cancellationToken);
     }
 
@@ -204,9 +297,11 @@ public class TelegramBotService : IAsyncDisposable
     {
         _state = BotState.EnterExpensesDesc;
 
-        _accountId = (await _expensesService.GetAccounts()).IndexOf(update.Message.Text);
+        _accountName = update.Message.Text;
+        _accountId = _expensesService.GetAccountIdByName(_accountName);
 
-        await _bot.SendMessage(MyUserId, "Enter description", replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+        const string message = "📝 Optional: Add a short description for this expense.";
+        await _bot.SendMessage(MyUserId, message, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
     }
 
     private async Task HandleEnterExpensesDesc(Update update, CancellationToken cancellationToken)
@@ -219,14 +314,42 @@ public class TelegramBotService : IAsyncDisposable
         {
             Amount = _amount,
             AccountId = _accountId,
-            CategoryId = _categoryId,
+            CategoryId = _subCategoryId,
             Date = DateTime.UtcNow,
             Description = _description
         });
 
-        await OpenMainMenu(cancellationToken);
+        var currentBalance = _balanceService.GetCurrentBalance(_accountId);
+
+        await ConfirmExpensesPage(cancellationToken);
     }
 
+    private async Task ConfirmExpensesPage(CancellationToken cancellationToken)
+    {
+        _state = BotState.MainMenu;
+        var message = $"💸 *Expense added* 💸\n\n💵 *Amount*: `{_amount.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("uk-UA"))}`\n\n📂 *Category*: `{_subCategoryName}`\n\n🏦 *Account*: `{_accountName}`\n\n📝 *Description*: `{_description}`";
+        await _bot.SendMessage(MyUserId, message, parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.MainMenuKeyboard(), cancellationToken: cancellationToken);
+    }
+    #endregion
+
+    private async Task OpenViewExpensesMenu(CancellationToken cancellationToken)
+    {
+        CultureInfo culture = new CultureInfo("uk-UA");
+
+        _state = BotState.ViewExpenses;
+        var expenses = await _expensesService.GetExpenses(5);
+        
+        var message = "📝 *Recent Expenses* 📝\n\n";
+        await _bot.SendMessage(MyUserId, message, parseMode: ParseMode.Markdown, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+        
+        foreach (var expense in expenses)
+        {
+            string temp = $"💸 *Amount*: `{expense.Amount.ToString("C", culture)}`\n\n📂 *Category*: `{expense.CategoryName}`\n\n🏦 *Account*: `{expense.AccountName}`\n\n📝 *Description*: `{expense.Description}`\n\n💰 *Balance*: `{expense.Balance.ToString("C", culture)}`";
+            await _bot.SendMessage(MyUserId, temp, parseMode: ParseMode.Markdown, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+        }
+
+        await _bot.SendMessage(MyUserId, "LOAD MORE?!", parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.ViewExpensesMenuKeyboard(), cancellationToken: cancellationToken);
+    }
 
     public async Task TestInline(Update update, CancellationToken cancellationToken)
     {
@@ -259,9 +382,30 @@ public class TelegramBotService : IAsyncDisposable
 
 public static class TelegramKeyboards
 {
+    #region MainMenu
     public const string Balance = "💰 Balance";
-    public const string EnterExpenses = "Enter Expenses";
-    public const string Back = "Back";
+    public const string AddEntry = "➕ Add Entry";
+    public const string ViewEntrie = "📋 View Entries";
+    public const string Shortcuts = "⚙️ Shortcuts";
+    #endregion
+
+    #region Balance Menu
+    public const string ShowInUsd = "🔄 Show in USD";
+    public const string NetWorth = "Net worth";
+    public const string Back = "🔙 Back";
+    #endregion
+
+    #region AddEntry Menu
+    public const string EnterExpenses = "➖ Add Expense";
+    public const string EnterIncome = "➕ Add Income";
+    // Back
+    #endregion
+
+    #region ViewEntries Menu
+    public const string ViewExpenses = "📝 Recent Expenses";
+    public const string ViewIncome = "💵 Recent Income";
+    // Back
+    #endregion
 
     public static ReplyKeyboardMarkup MainMenuKeyboard()
     {
@@ -271,9 +415,12 @@ public static class TelegramKeyboards
                     new KeyboardButton(Balance),
                 ],
                 [
-                    new KeyboardButton(EnterExpenses),
-                    new KeyboardButton("Enter Income"),
-                ]
+                    new KeyboardButton(AddEntry),
+                    new KeyboardButton(ViewEntrie),
+                ],
+                [
+                    new KeyboardButton(Shortcuts),
+                ],
             ]
         );
     }
@@ -283,12 +430,61 @@ public static class TelegramKeyboards
         return new ReplyKeyboardMarkup(
             [
                 [
-                    new KeyboardButton("Back"),
+                    new KeyboardButton(NetWorth),
+                    new KeyboardButton(ShowInUsd),
+                ],
+                [
+                    new KeyboardButton(Back),
+                ]
+            ]
+        );
+    }
+    
+    public static ReplyKeyboardMarkup AddEntryMenuKeyboard()
+    {
+        return new ReplyKeyboardMarkup(
+            [
+                [
+                    new KeyboardButton(EnterExpenses),
+                    new KeyboardButton(EnterIncome),
+                ],
+                [
+                    new KeyboardButton(Back),
+                ],
+            ]
+        );
+    }
+    
+    public static ReplyKeyboardMarkup ViewEntriesMenuKeyboard()
+    {
+        return new ReplyKeyboardMarkup(
+            [
+                [
+                    new KeyboardButton(ViewExpenses),
+                    new KeyboardButton(ViewIncome),
+                ],
+                [
+                    new KeyboardButton(Back),
                 ],
             ]
         );
     }
 
+    public static ReplyKeyboardMarkup ViewExpensesMenuKeyboard()
+    {
+        return new ReplyKeyboardMarkup(
+            [
+                [
+                    new KeyboardButton("Load more"),
+                ],
+                [
+                    new KeyboardButton(Back),
+                ],
+            ]
+        );
+    }
+
+    #region Expenses
     public static ReplyKeyboardMarkup ExpensesCategoryKeyboard(List<string> expensesCategories)
     {
         var result = new ReplyKeyboardMarkup();
@@ -315,4 +511,5 @@ public static class TelegramKeyboards
 
         return result;
     }
+    #endregion
 }

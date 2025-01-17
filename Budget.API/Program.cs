@@ -9,8 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
+builder.Services.AddSingleton<ExpenseService>();
+
+builder.Services.AddTransient<BalanceService>();
 builder.Services.AddTransient<IncomeService>();
-builder.Services.AddTransient<ExpensesService>();
 
 //var lol = new TelegramBotService();
 builder.Services.AddSingleton<TelegramBotService>();
@@ -58,5 +60,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 _ = app.Services.GetService<TelegramBotService>();
+_ = app.Services.GetService<ExpenseService>();
 
 app.Run();

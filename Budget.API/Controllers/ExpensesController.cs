@@ -5,15 +5,26 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Budget.API.Controllers;
 
-[Route("budget/expenses")]
+[Route("apibudget/expenses")]
 [ApiController]
 public class ExpensesController : ControllerBase
 {
-    private readonly ExpensesService _expensesService;
+    private readonly ExpenseService _expensesService;
 
-    public ExpensesController(ExpensesService expensesService)
+    public ExpensesController(ExpenseService expensesService)
     {
         _expensesService = expensesService;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<ResponseModel<GetExpensesData, IError>>> GetExpenses([FromQuery] DateTime from, DateTime to)
+    {
+        var expenses = await _expensesService.GetExpenses(from, to);
+
+        return Ok(new ResponseModel<GetExpensesData, IError>()
+        {
+            Data = new GetExpensesData(expenses)
+        });
     }
 
     [HttpPost]
@@ -26,4 +37,14 @@ public class ExpensesController : ControllerBase
             Data = new StatusResponseData("Expenses added successfully")
         });
     }
+
+    //[HttpGet]
+    //public async Task<ActionResult<ResponseModel<GetCategoriesData, IError>> GetCategories([FromQuery] bool inUah)
+    //{
+    //    var balance = await _expensesService.GetBalance(inUah);
+    //    return Ok(new ResponseModel<AccountBalanceModel, IError>()
+    //    {
+    //        Data = balance
+    //    });
+    //}
 }
