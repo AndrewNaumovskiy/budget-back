@@ -1,4 +1,5 @@
-﻿using Budget.API.Models.Dtos;
+﻿using Budget.API.Models.DbModels;
+using Budget.API.Models.Dtos;
 
 namespace Budget.API.Models;
 
@@ -40,8 +41,40 @@ public class GetExpensesData : IData
         Expenses = expenses;
     }
 }
+public class GetCategoriesData : IData
+{
+    public List<CategoryDto> Categories { get; set; }
+    public GetCategoriesData(List<CategoryDto> categories)
+    {
+        Categories = categories;
+    }
+}
 
 
+
+public class GetSummaryData : IData
+{
+    public double Income { get; set; }
+    public double Expenses { get; set; }
+    public double Savings { get; set; }
+    public double Unspecified { get; set; }
+    public GetSummaryData(double income, double expenses, double savings, double unspec)
+    {
+        Income = income;
+        Expenses = expenses;
+        Savings = savings;
+        Unspecified = unspec;
+    }
+}
+public class GetRecentTransactionsData : IData
+{
+    // TODO: rename model
+    public List<ExpenseDto> Transactions { get; set; }
+    public GetRecentTransactionsData(List<ExpenseDto> transactions)
+    {
+        Transactions = transactions;
+    }
+}
 public class GetIncomeExpenseChartData : IData
 {
     public List<double> Income { get; set; }

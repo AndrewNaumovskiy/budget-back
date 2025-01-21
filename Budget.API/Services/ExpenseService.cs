@@ -2,7 +2,9 @@
 using Budget.API.Models.DbModels;
 using Budget.API.Models.Dtos;
 using Budget.API.Models.RequestModels;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 
 namespace Budget.API.Services;
 
@@ -151,5 +153,31 @@ public class ExpenseService
     public int GetAccountIdByName(string name)
     {
         return _accounts.FirstOrDefault(x => x.Name == name)!.Id;
+    }
+
+    public async Task<List<CategoryDto>> GetCategoriesMeow()
+    {
+        List<CategoryDto> result = new();
+
+        using (var db = await _dbContext.CreateDbContextAsync())
+        {
+            var temp = await db.Categories.AsNoTracking()
+                                          .Where(x => !(x.Id == 0 || x.Id == 9))
+                                          .Include(x => x.SubCategories)
+                                          .ToListAsync();
+
+            foreach(var item in temp)
+            {
+                CategoryDto cat = new(item.Id, item.Name);
+
+                foreach(var sub in item.SubCategories)
+                {
+                    cat.SubCategories.Add(new(sub.Id, sub.Name));
+                }
+                result.Add(cat);
+            }
+        }
+
+        return result;
     }
 }

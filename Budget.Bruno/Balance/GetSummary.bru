@@ -1,0 +1,16 @@
+meta {
+  name: GetSummary
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{IP}}/apibudget/balance/summary
+  body: none
+  auth: none
+}
+
+params:query {
+  ~year: 2024
+  ~month: 12
+}

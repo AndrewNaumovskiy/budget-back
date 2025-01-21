@@ -38,6 +38,18 @@ public class ExpensesController : ControllerBase
         });
     }
 
+    [HttpGet]
+    [Route("categories")]
+    public async Task<ActionResult<ResponseModel<GetCategoriesData, IError>>> GetCategories([FromQuery] string? page)
+    {
+        var categories = await _expensesService.GetCategoriesMeow();
+
+        return Ok(new ResponseModel<GetCategoriesData, IError>()
+        {
+            Data = new GetCategoriesData(categories)
+        });
+    }
+
     //[HttpGet]
     //public async Task<ActionResult<ResponseModel<GetCategoriesData, IError>> GetCategories([FromQuery] bool inUah)
     //{
