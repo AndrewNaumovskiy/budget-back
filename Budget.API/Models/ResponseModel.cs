@@ -35,8 +35,8 @@ public class StatusResponseData : IData
 
 public class GetExpensesData : IData
 {
-    public List<ExpenseDto> Expenses { get; set; }
-    public GetExpensesData(List<ExpenseDto> expenses)
+    public List<TransactionDto> Expenses { get; set; }
+    public GetExpensesData(List<TransactionDto> expenses)
     {
         Expenses = expenses;
     }
@@ -52,6 +52,14 @@ public class GetCategoriesData : IData
 
 
 
+public class GetAccountsData : IData
+{
+    public List<AccountDto> Accounts { get; set; }
+    public GetAccountsData(List<AccountDto> accounts)
+    {
+        Accounts = accounts;
+    }
+}
 public class GetSummaryData : IData
 {
     public double Income { get; set; }
@@ -68,9 +76,8 @@ public class GetSummaryData : IData
 }
 public class GetRecentTransactionsData : IData
 {
-    // TODO: rename model
-    public List<ExpenseDto> Transactions { get; set; }
-    public GetRecentTransactionsData(List<ExpenseDto> transactions)
+    public List<TransactionDto> Transactions { get; set; }
+    public GetRecentTransactionsData(List<TransactionDto> transactions)
     {
         Transactions = transactions;
     }
@@ -85,3 +92,4 @@ public class GetIncomeExpenseChartData : IData
         Expense = expenses;
     }
 }
+

@@ -35,6 +35,21 @@ public class BalanceService
     }
 
 
+    public async Task<List<AccountDto>> GetAccounts()
+    {
+        using(var db = await _dbContext.CreateDbContextAsync())
+        {
+            return await db.Accounts.AsNoTracking()
+                                    .Select(x => new AccountDto()
+                                    {
+                                        Id = x.Id,
+                                        Name = x.Name,
+                                        Balance = x.Balance
+                                    })
+                                    .ToListAsync();
+        }
+    }
+
     public async Task<(double, double, double, double)> GetSummary(string yearStr, string monthStr)
     {
         double income = 0, expenses = 0, savings = 0, unspecified = 0;
@@ -71,7 +86,7 @@ public class BalanceService
         return (Math.Round(income, 2), Math.Round(expenses, 2), Math.Round(savings, 2), Math.Round(unspecified, 2));
     }
 
-    public async Task<List<ExpenseDto>> GetRecentTransactions(string pageStr)
+    public async Task<List<TransactionDto>> GetRecentTransactions(string pageStr)
     {
         const int PageSize = 5;
         int page = 0;
@@ -87,9 +102,10 @@ public class BalanceService
                                         .ThenByDescending(x => x.Id)
                                         //.Skip(page * PageSize)
                                         .Take(PageSize)
-                                        .Select(x => new ExpenseDto()
+                                        .Select(x => new TransactionDto()
                                         {
                                             Id = x.Id,
+                                            Type = x.Type,
                                             Date = x.Date,
                                             Amount = x.Amount,
                                             Description = x.Desc,

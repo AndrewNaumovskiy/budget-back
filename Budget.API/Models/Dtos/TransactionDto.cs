@@ -1,8 +1,9 @@
 ﻿namespace Budget.API.Models.Dtos;
 
-public class ExpenseDto
+public class TransactionDto
 {
     public int Id { get; set; }
+    public int Type { get; set; }
     public DateTime Date { get; set; }
     public double Amount { get; set; }
     public string Description { get; set; }

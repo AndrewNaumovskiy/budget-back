@@ -1,6 +1,5 @@
 ﻿using Budget.API.Models;
 using Budget.API.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Budget.API.Controllers
@@ -14,6 +13,18 @@ namespace Budget.API.Controllers
         public BalanceController(BalanceService balanceService)
         {
             _balanceService = balanceService;
+        }
+
+        [HttpGet]
+        [Route("accounts")]
+        public async Task<ActionResult<ResponseModel<GetAccountsData, IError>>> GetAccounts()
+        {
+            var accounts = await _balanceService.GetAccounts();
+
+            return Ok(new ResponseModel<GetAccountsData, IError>()
+            {
+                Data = new GetAccountsData(accounts)
+            });
         }
 
         [HttpGet]

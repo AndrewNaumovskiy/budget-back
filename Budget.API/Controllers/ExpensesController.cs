@@ -49,14 +49,4 @@ public class ExpensesController : ControllerBase
             Data = new GetCategoriesData(categories)
         });
     }
-
-    //[HttpGet]
-    //public async Task<ActionResult<ResponseModel<GetCategoriesData, IError>> GetCategories([FromQuery] bool inUah)
-    //{
-    //    var balance = await _expensesService.GetBalance(inUah);
-    //    return Ok(new ResponseModel<AccountBalanceModel, IError>()
-    //    {
-    //        Data = balance
-    //    });
-    //}
 }

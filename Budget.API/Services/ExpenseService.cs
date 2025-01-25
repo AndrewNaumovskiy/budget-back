@@ -68,19 +68,22 @@ public class ExpenseService
             Date = request.Date,
             Desc = request.Description,
             Type = TransactionType.Expense,
-            // TODO: calculate new balance
             BalanceAfterTransaction = 0
         };
 
         using (var db = await _dbContext.CreateDbContextAsync())
         {
+            var currentBalance = (await db.Accounts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == request.AccountId))!.Balance;
+
+            expensesRecord.BalanceAfterTransaction = Math.Round(currentBalance - request.Amount, 2);
+
             await db.Transactions.AddAsync(expensesRecord);
             await db.SaveChangesAsync();
         }
     }
 
 
-    public async Task<List<ExpenseDto>> GetExpenses(DateTime from, DateTime to)
+    public async Task<List<TransactionDto>> GetExpenses(DateTime from, DateTime to)
     {
         var start = new DateTime(from.Year, from.Month, 1, 0, 0, 0);
 
@@ -92,10 +95,12 @@ public class ExpenseService
             return await db.Transactions.AsNoTracking()
                                         .Where(x => x.Type == TransactionType.Expense)
                                         .Where(x => x.Date >= start && x.Date <= end)
-                                        .OrderByDescending(x => x.Id)
-                                        .Select(x => new ExpenseDto()
+                                        .OrderByDescending(x => x.Date)
+                                        .ThenByDescending(x => x.Id)
+                                        .Select(x => new TransactionDto()
                                         {
                                             Id = x.Id,
+                                            Type = TransactionType.Expense,
                                             Date = x.Date,
                                             Amount = x.Amount,
                                             Description = x.Desc,
@@ -106,18 +111,21 @@ public class ExpenseService
                                         .ToListAsync();
         }
     }
-    public async Task<List<ExpenseDto>> GetExpenses(int pageSize, int page = 0)
+
+    public async Task<List<TransactionDto>> GetExpenses(int pageSize, int page = 0)
     {
         using (var db = await _dbContext.CreateDbContextAsync())
         {
             return await db.Transactions.AsNoTracking()
                                         .Where(x => x.Type == TransactionType.Expense)
-                                        .OrderByDescending(x => x.Id)
+                                        .OrderByDescending(x => x.Date)
+                                        .ThenByDescending(x => x.Id)
                                         .Skip(page * pageSize)
                                         .Take(pageSize)
-                                        .Select(x => new ExpenseDto()
+                                        .Select(x => new TransactionDto()
                                         {
                                             Id = x.Id,
+                                            Type = TransactionType.Expense,
                                             Date = x.Date,
                                             Amount = x.Amount,
                                             Description = x.Desc,
