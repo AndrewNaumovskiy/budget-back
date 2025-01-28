@@ -93,3 +93,11 @@ public class GetIncomeExpenseChartData : IData
     }
 }
 
+public class GetIncomeData : IData
+{
+    public List<TransactionDto> Income { get; set; }
+    public GetIncomeData(List<TransactionDto> income)
+    {
+        Income = income;
+    }
+}

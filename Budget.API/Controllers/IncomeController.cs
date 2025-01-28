@@ -17,13 +17,13 @@ public class IncomeController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ResponseModel<GetRecentTransactionsData, IError>>> GetExpenses([FromQuery] DateTime from, DateTime to)
+    public async Task<ActionResult<ResponseModel<GetIncomeData, IError>>> GetIncomes([FromQuery] DateTime from, DateTime to)
     {
         var expenses = await _incomeService.GetIncomes(from, to);
 
-        return Ok(new ResponseModel<GetRecentTransactionsData, IError>()
+        return Ok(new ResponseModel<GetIncomeData, IError>()
         {
-            Data = new GetRecentTransactionsData(expenses)
+            Data = new GetIncomeData(expenses)
         });
     }
 
