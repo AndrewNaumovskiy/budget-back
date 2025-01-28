@@ -40,7 +40,7 @@ public class IncomeController : ControllerBase
 
     [HttpGet]
     [Route("categories")]
-    public async Task<ActionResult<ResponseModel<GetCategoriesData, IError>>> GetCategories([FromQuery] string? page)
+    public async Task<ActionResult<ResponseModel<GetCategoriesData, IError>>> GetCategories()
     {
         var categories = await _incomeService.GetCategoriesMeow();
 
