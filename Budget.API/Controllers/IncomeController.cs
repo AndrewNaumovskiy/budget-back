@@ -17,9 +17,10 @@ public class IncomeController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ResponseModel<GetIncomeData, IError>>> GetIncomes([FromQuery] DateTime from, DateTime to)
+    public async Task<ActionResult<ResponseModel<GetIncomeData, IError>>> GetIncomes(
+        [FromQuery] DateTime from, DateTime to, string? sortBy, int? account, int? category)
     {
-        var expenses = await _incomeService.GetIncomes(from, to);
+        var expenses = await _incomeService.GetIncomes(from, to, sortBy, account, category);
 
         return Ok(new ResponseModel<GetIncomeData, IError>()
         {

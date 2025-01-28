@@ -6,3 +6,9 @@ public class TransactionType
     public const int Expense = 1;
     public const int Savings = 2;
 }
+
+public class SortBy
+{
+    public const string Date = "date";
+    public const string Amount = "amount";
+}

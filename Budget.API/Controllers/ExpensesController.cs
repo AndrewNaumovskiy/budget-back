@@ -17,9 +17,10 @@ public class ExpensesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ResponseModel<GetExpensesData, IError>>> GetExpenses([FromQuery] DateTime from, DateTime to)
+    public async Task<ActionResult<ResponseModel<GetExpensesData, IError>>> GetExpenses(
+        [FromQuery] DateTime from, DateTime to, string? sortBy, int? account, int? category)
     {
-        var expenses = await _expensesService.GetExpenses(from, to);
+        var expenses = await _expensesService.GetExpenses(from, to, sortBy, account, category);
 
         return Ok(new ResponseModel<GetExpensesData, IError>()
         {

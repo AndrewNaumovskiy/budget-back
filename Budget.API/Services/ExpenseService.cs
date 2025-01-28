@@ -83,32 +83,41 @@ public class ExpenseService
     }
 
 
-    public async Task<List<TransactionDto>> GetExpenses(DateTime from, DateTime to)
+    public async Task<List<TransactionDto>> GetExpenses(DateTime from, DateTime to, string? sortBy, int? account, int? category)
     {
-        var start = new DateTime(from.Year, from.Month, 1, 0, 0, 0);
-
-        var daysInMonth = DateTime.DaysInMonth(to.Year, to.Month);
-        var end = new DateTime(to.Year, to.Month, daysInMonth, 23, 59, 59);
+        var start = new DateTime(from.Year, from.Month, from.Day, 0, 0, 0);
+        var end = new DateTime(to.Year, to.Month, to.Day, 23, 59, 59);
 
         using (var db = await _dbContext.CreateDbContextAsync())
         {
-            return await db.Transactions.AsNoTracking()
-                                        .Where(x => x.Type == TransactionType.Expense)
-                                        .Where(x => x.Date >= start && x.Date <= end)
-                                        .OrderByDescending(x => x.Date)
-                                        .ThenByDescending(x => x.Id)
-                                        .Select(x => new TransactionDto()
-                                        {
-                                            Id = x.Id,
-                                            Type = TransactionType.Expense,
-                                            Date = x.Date,
-                                            Amount = x.Amount,
-                                            Description = x.Desc,
-                                            AccountName = x.Account.Name,
-                                            CategoryName = x.Category.Name,
-                                            Balance = x.BalanceAfterTransaction
-                                        })
-                                        .ToListAsync();
+            var query = db.Transactions.AsNoTracking()
+                                       .Where(x => x.Type == TransactionType.Expense)
+                                       .Where(x => x.Date >= start && x.Date <= end);
+
+            if (string.IsNullOrEmpty(sortBy) || sortBy == SortBy.Date)
+                query = query.OrderByDescending(x => x.Date)
+                             .ThenByDescending(x => x.Id);
+            else if (sortBy == SortBy.Amount)
+                query = query.OrderByDescending(x => x.Amount);
+
+            if(account.HasValue)
+                query = query.Where(x => x.AccountId == account);
+
+            if(category.HasValue)
+                query = query.Where(x => x.CategoryId == category);
+
+            return await query.Select(x => new TransactionDto()
+                                            {
+                                                Id = x.Id,
+                                                Type = TransactionType.Expense,
+                                                Date = x.Date,
+                                                Amount = x.Amount,
+                                                Description = x.Desc,
+                                                AccountName = x.Account.Name,
+                                                CategoryName = x.Category.Name,
+                                                Balance = x.BalanceAfterTransaction
+                                            })
+                              .ToListAsync();
         }
     }
 
