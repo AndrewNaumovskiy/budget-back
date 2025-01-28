@@ -89,6 +89,9 @@ public class TelegramBotService : IAsyncDisposable
 
     async Task HandleMessages(ITelegramBotClient _, Update update, CancellationToken cancellationToken)
     {
+        if (update.Message.Chat.Id != MyUserId)
+            return;
+
         switch(update.Type)
         {
             case UpdateType.Message:
