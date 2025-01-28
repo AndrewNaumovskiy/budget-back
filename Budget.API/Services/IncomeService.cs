@@ -29,7 +29,8 @@ public class IncomeService
             Date = request.Date,
             Desc = request.Description,
             Type = TransactionType.Income,
-            BalanceAfterTransaction = 0
+            BalanceAfterTransaction = 0,
+            CurrencyRate = currencyRate
         };
 
         using (var db = await _dbContext.CreateDbContextAsync())

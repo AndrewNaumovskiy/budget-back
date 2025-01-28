@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Globalization;
 
 namespace Budget.API.Services;
 
@@ -19,7 +20,7 @@ public class CurrencyRateService
             var json = JsonSerializer.Deserialize<List<PrivatBankResponseModel>>(content);
             
             var str = json.FirstOrDefault(x => x.ccy == "USD")!.sale;
-            return double.Parse(str.Replace('.',','));
+            return double.Parse(str, CultureInfo.InvariantCulture);
         }
     }
 }

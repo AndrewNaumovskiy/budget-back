@@ -71,7 +71,8 @@ public class ExpenseService
             Date = request.Date,
             Desc = request.Description,
             Type = TransactionType.Expense,
-            BalanceAfterTransaction = 0
+            BalanceAfterTransaction = 0,
+            CurrencyRate = currencyRate
         };
 
         using (var db = await _dbContext.CreateDbContextAsync())
