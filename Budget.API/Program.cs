@@ -14,6 +14,7 @@ builder.Services.AddSingleton<ExpenseService>();
 
 builder.Services.AddTransient<BalanceService>();
 builder.Services.AddTransient<IncomeService>();
+builder.Services.AddTransient<CurrencyRateService>();
 
 //var lol = new TelegramBotService();
 builder.Services.AddSingleton<TelegramBotService>();

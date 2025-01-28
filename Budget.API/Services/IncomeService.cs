@@ -8,15 +8,19 @@ namespace Budget.API.Services;
 
 public class IncomeService
 {
+    private readonly CurrencyRateService _currencyRateService;
     private readonly IDbContextFactory<BudgetDbContext> _dbContext;
 
-    public IncomeService(IDbContextFactory<BudgetDbContext> dbContext)
+    public IncomeService(CurrencyRateService currencyRateService, IDbContextFactory<BudgetDbContext> dbContext)
     {
         _dbContext = dbContext;
+        _currencyRateService = currencyRateService;
     }
 
     public async Task AddExpense(AddIncomeRequestModel request)
     {
+        var currencyRate = await _currencyRateService.GetUsdToUah();
+
         var expensesRecord = new TransactionDbModel()
         {
             Amount = request.Amount,
@@ -30,9 +34,12 @@ public class IncomeService
 
         using (var db = await _dbContext.CreateDbContextAsync())
         {
-            var currentBalance = (await db.Accounts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == request.AccountId))!.Balance;
+            var account = await db.Accounts.FirstOrDefaultAsync(x => x.Id == request.AccountId);
 
-            expensesRecord.BalanceAfterTransaction = Math.Round(currentBalance + request.Amount, 2);
+            var newBalance = Math.Round(account.Balance + request.Amount, 2);
+            expensesRecord.BalanceAfterTransaction = newBalance;
+
+            account.Balance = newBalance;
 
             await db.Transactions.AddAsync(expensesRecord);
             await db.SaveChangesAsync();

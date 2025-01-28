@@ -7,11 +7,13 @@ namespace Budget.API.Services;
 
 public class BalanceService
 {
+    private readonly CurrencyRateService _currencyRateService;
     private readonly IDbContextFactory<BudgetDbContext> _dbContext;
 
-    public BalanceService(IDbContextFactory<BudgetDbContext> dbContext)
+    public BalanceService(CurrencyRateService currencyRateService, IDbContextFactory<BudgetDbContext> dbContext)
     {
         _dbContext = dbContext;
+        _currencyRateService = currencyRateService;
     }
 
     public async Task<AccountBalanceModel> GetBalance(bool inUah)
@@ -19,8 +21,8 @@ public class BalanceService
         double currencyRate = 0.0;
         if (!inUah)
         {
-            // TODO: get currency rate from API
-            currencyRate = 0.0237048275;
+            var temp = await _currencyRateService.GetUsdToUah();
+            currencyRate = 1 / temp;
         }
 
         using (var db = await _dbContext.CreateDbContextAsync())

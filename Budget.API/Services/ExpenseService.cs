@@ -18,12 +18,13 @@ public class ExpenseService
     private List<string> _subCategoriesStr = new();
     private List<string> _accountsStr = new();
 
-
+    private readonly CurrencyRateService _currencyRateService;
     private readonly IDbContextFactory<BudgetDbContext> _dbContext;
 
-    public ExpenseService(IDbContextFactory<BudgetDbContext> dbContext)
+    public ExpenseService(CurrencyRateService currencyRateService, IDbContextFactory<BudgetDbContext> dbContext)
     {
         _dbContext = dbContext;
+        _currencyRateService = currencyRateService;
 
         _ = InitService();
     }
@@ -60,6 +61,8 @@ public class ExpenseService
 
     public async Task AddExpense(AddExpensesRequestModel request)
     {
+        var currencyRate = await _currencyRateService.GetUsdToUah();
+
         var expensesRecord = new TransactionDbModel()
         {
             Amount = request.Amount,
@@ -73,9 +76,12 @@ public class ExpenseService
 
         using (var db = await _dbContext.CreateDbContextAsync())
         {
-            var currentBalance = (await db.Accounts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == request.AccountId))!.Balance;
+            var account = await db.Accounts.FirstOrDefaultAsync(x => x.Id == request.AccountId);
 
-            expensesRecord.BalanceAfterTransaction = Math.Round(currentBalance - request.Amount, 2);
+            var newBalance = Math.Round(account.Balance - request.Amount, 2);
+            expensesRecord.BalanceAfterTransaction = newBalance;
+
+            account.Balance = newBalance;
 
             await db.Transactions.AddAsync(expensesRecord);
             await db.SaveChangesAsync();
