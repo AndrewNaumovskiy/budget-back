@@ -101,3 +101,13 @@ public class GetIncomeData : IData
         Income = income;
     }
 }
+
+
+public class GetTransactionData : IData
+{
+    public TransactionDto Transaction { get; set; }
+    public GetTransactionData(TransactionDto transaction)
+    {
+        Transaction = transaction;
+    }
+}
