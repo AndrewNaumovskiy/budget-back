@@ -5,7 +5,6 @@ namespace Budget.API.Helpers;
 
 public class BudgetDbContext : DbContext
 {
-    public DbSet<TransferDbModel> Transfers { get; set; }
     public DbSet<TransactionDbModel> Transactions { get; set; }
     
     public DbSet<AccountDbModel> Accounts { get; set; }

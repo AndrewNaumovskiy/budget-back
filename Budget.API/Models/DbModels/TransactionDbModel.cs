@@ -12,7 +12,7 @@ public class TransactionDbModel
     public int AccountId { get; set; }
     public int CategoryId { get; set; }
     public string Desc { get; set; }
-    public int Type { get; set; } // 0 - income, 1 - expense, 2 - savings
+    public int Type { get; set; } // 0 - income, 1 - expense, 2 - savings, 3 - transfer
     public double BalanceAfterTransaction { get; set; }
 
     public AccountDbModel Account { get; set; }
