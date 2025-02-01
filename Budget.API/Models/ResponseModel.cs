@@ -60,20 +60,6 @@ public class GetAccountsData : IData
         Accounts = accounts;
     }
 }
-public class GetSummaryData : IData
-{
-    public double Income { get; set; }
-    public double Expenses { get; set; }
-    public double Savings { get; set; }
-    public double Unspecified { get; set; }
-    public GetSummaryData(double income, double expenses, double savings, double unspec)
-    {
-        Income = income;
-        Expenses = expenses;
-        Savings = savings;
-        Unspecified = unspec;
-    }
-}
 public class GetRecentTransactionsData : IData
 {
     public List<TransactionDto> Transactions { get; set; }
@@ -109,5 +95,19 @@ public class GetTransactionData : IData
     public GetTransactionData(TransactionDto transaction)
     {
         Transaction = transaction;
+    }
+}
+public class GetSummaryData : IData
+{
+    public double Income { get; set; }
+    public double Expenses { get; set; }
+    public double Savings { get; set; }
+    public double Unspecified { get; set; }
+    public GetSummaryData(double income, double expenses, double savings, double unspec)
+    {
+        Income = income;
+        Expenses = expenses;
+        Savings = savings;
+        Unspecified = unspec;
     }
 }

@@ -27,30 +27,7 @@ namespace Budget.API.Controllers
             });
         }
 
-        [HttpGet]
-        [Route("summary")]
-        public async Task<ActionResult<ResponseModel<GetSummaryData, IError>>> GetSummary([FromQuery]string? year, string? month)
-        {
-            var (income, expenses, savings, unspecified) = await _balanceService.GetSummary(year, month);
-
-            return Ok(new ResponseModel<GetSummaryData, IError>()
-            {
-                Data = new GetSummaryData(income, expenses, savings, unspecified)
-            });
-        }
-
-        [HttpGet]
-        [Route("recentTransactions")]
-        public async Task<ActionResult<ResponseModel<GetRecentTransactionsData, IError>>> GetRecentTransactions([FromQuery] string? page)
-        {
-            var recent = await _balanceService.GetRecentTransactions(page);
-
-            return Ok(new ResponseModel<GetRecentTransactionsData, IError>()
-            {
-                Data = new GetRecentTransactionsData(recent)
-            });
-        }
-
+        // TODO: move to statistics controller
         [HttpGet]
         [Route("incomeExpenseChart")]
         public async Task<ActionResult<ResponseModel<GetIncomeExpenseChartData, IError>>> GetIncomeExpenseChart()

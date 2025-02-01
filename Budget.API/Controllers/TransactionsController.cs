@@ -32,4 +32,28 @@ public class TransactionsController : ControllerBase
             Data = new GetTransactionData(transaction)
         });
     }
+
+    [HttpGet]
+    public async Task<ActionResult<ResponseModel<GetRecentTransactionsData, IError>>> GetRecentTransactions([FromQuery] string? page)
+    {
+        var recent = await _transactionService.GetRecentTransactions(page);
+
+        return Ok(new ResponseModel<GetRecentTransactionsData, IError>()
+        {
+            Data = new GetRecentTransactionsData(recent)
+        });
+    }
+
+    [HttpGet]
+    [Route("summary")]
+    public async Task<ActionResult<ResponseModel<GetSummaryData, IError>>> GetSummary([FromQuery] string? year, string? month)
+    {
+        var (income, expenses, savings, unspecified) = await _transactionService.GetSummary(year, month);
+
+        return Ok(new ResponseModel<GetSummaryData, IError>()
+        {
+            Data = new GetSummaryData(income, expenses, savings, unspecified)
+        });
+    }
+
 }
