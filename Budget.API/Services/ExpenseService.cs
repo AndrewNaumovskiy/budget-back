@@ -186,7 +186,7 @@ public class ExpenseService
         using (var db = await _dbContext.CreateDbContextAsync())
         {
             var temp = await db.Categories.AsNoTracking()
-                                          .Where(x => !(x.Id == 0 || x.Id == 9))
+                                          .Where(x => !(x.Id == 0 || x.Id == 9 || x.Id == 10))
                                           .Include(x => x.SubCategories)
                                           .ToListAsync();
 

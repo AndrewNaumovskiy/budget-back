@@ -1,5 +1,6 @@
 ﻿using Budget.API.Helpers;
 using Budget.API.Models.Dtos;
+using Budget.API.Models.RequestModels;
 using Microsoft.EntityFrameworkCore;
 
 namespace Budget.API.Services;
@@ -32,6 +33,44 @@ public class TransactionsService
                                         })
                                         .FirstOrDefaultAsync();
         }
+    }
+
+    public async Task<bool> EditTransaction(int id, EditTransactionRequestModel transaction)
+    {
+        using (var db = await _dbContext.CreateDbContextAsync())
+        {
+            var dbTransaction = await db.Transactions.FirstOrDefaultAsync(x => x.Id == id);
+            if (dbTransaction == null)
+                return false;
+
+            dbTransaction.Type = transaction.Type;
+            dbTransaction.Date = transaction.Date;
+            dbTransaction.Amount = transaction.Amount;
+            dbTransaction.Desc = transaction.Description;
+            dbTransaction.AccountId = transaction.AccountId;
+            dbTransaction.CategoryId = transaction.CategoryId;
+
+            // TODO: update balance of rest of the transactions
+
+            await db.SaveChangesAsync();
+        }
+        return true;
+    }
+
+    public async Task<bool> DeleteTransaction(int id)
+    {
+        using (var db = await _dbContext.CreateDbContextAsync())
+        {
+            var dbTransaction = await db.Transactions.FirstOrDefaultAsync(x => x.Id == id);
+            if (dbTransaction == null)
+                return false;
+
+            db.Transactions.Remove(dbTransaction);
+            // TODO: update balance of rest of the transactions
+
+            await db.SaveChangesAsync();
+        }
+        return true;
     }
 
     public async Task<List<TransactionDto>> GetRecentTransactions(string pageStr)

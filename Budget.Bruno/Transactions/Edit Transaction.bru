@@ -1,0 +1,23 @@
+meta {
+  name: Edit Transaction
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{IP}}/apibudget/transactions/775
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "id": 1,
+    "date": "2025-02-03T19:07:36.142Z",
+    "amount": 1.0,
+    "accountId": 0,
+    "categoryId": 1,
+    "description": "meow",
+    "type": 1
+  }
+}
