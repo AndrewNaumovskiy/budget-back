@@ -1,10 +1,13 @@
+using System.Text;
 using Scalar.AspNetCore;
-using Microsoft.Net.Http.Headers;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.HttpOverrides;
 using Budget.API.Helpers;
 using Budget.API.Services;
 using Budget.API.Middleware;
+using Microsoft.Net.Http.Headers;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +20,7 @@ builder.Services.AddTransient<IncomeService>();
 builder.Services.AddTransient<TransferService>();
 builder.Services.AddTransient<TransactionsService>();
 builder.Services.AddTransient<CurrencyRateService>();
+builder.Services.AddTransient<AuthService>();
 
 //var lol = new TelegramBotService();
 builder.Services.AddSingleton<TelegramBotService>();
@@ -43,6 +47,32 @@ builder.Services.AddCors(options =>
                                 .WithExposedHeaders(HeaderNames.AccessControlAllowOrigin));
 });
 
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.RequireHttpsMetadata = false;
+                    options.SaveToken = true;
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = false,
+                        ValidateAudience = false,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(""))
+                    };
+
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnAuthenticationFailed = context =>
+                        {
+                            Console.WriteLine("Authentication failed: " + context.Exception.Message);
+                            return Task.CompletedTask;
+                        }
+                    };
+                });
+
+builder.Services.AddAuthorization();
+
 var app = builder.Build();
 
 app.UseForwardedHeaders(new ForwardedHeadersOptions
@@ -61,6 +91,7 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseCors();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

@@ -111,3 +111,12 @@ public class GetSummaryData : IData
         Unspecified = unspec;
     }
 }
+
+public class LoginData : IData
+{
+    public string Token { get; set; }
+    public LoginData(string token)
+    {
+        Token = token;
+    }
+}

@@ -1,6 +1,7 @@
 ﻿using Budget.API.Models;
 using Budget.API.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Budget.API.Controllers
 {
@@ -16,6 +17,7 @@ namespace Budget.API.Controllers
         }
 
         [HttpGet]
+        [Authorize]
         [Route("accounts")]
         public async Task<ActionResult<ResponseModel<GetAccountsData, IError>>> GetAccounts()
         {

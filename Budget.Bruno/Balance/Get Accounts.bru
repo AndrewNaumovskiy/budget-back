@@ -7,5 +7,9 @@ meta {
 get {
   url: {{IP}}/apibudget/balance/accounts
   body: none
-  auth: none
+  auth: inherit
+}
+
+headers {
+  ~Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1bmlxdWVfbmFtZSI6InRlc3QiLCJuYmYiOjE3Mzg5MzU5MjUsImV4cCI6MTczODk0MzEyNSwiaWF0IjoxNzM4OTM1OTI1fQ.m9b1ptp8Ioq_wF7qi6Afo_vx5OpVDuB3SCMh_Hwvncs
 }
