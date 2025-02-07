@@ -23,6 +23,7 @@ public class BalanceService
             currencyRate = 1 / temp;
         }
 
+        // TODO: fix this
         using (var db = new BudgetDbContext(null))
         {
             var accounts = await db.Accounts.ToListAsync();
@@ -50,7 +51,7 @@ public class BalanceService
         }
     }
 
-    public async Task<(List<double>, List<double>)> GetIncomeExpenseChart()
+    public async Task<(List<double>, List<double>)> GetIncomeExpenseChart(DbContextOptions<BudgetDbContext> dbOptions)
     {
         List<double> incomeRes = new(), expenseRes = new();
 
@@ -59,7 +60,7 @@ public class BalanceService
         DateTime now = DateTime.UtcNow;
         DateTime from = new DateTime(now.Year, now.Month, 1, 0,0,1).AddMonths(-monthsCount);
 
-        using (var db = new BudgetDbContext(null))
+        using (var db = new BudgetDbContext(dbOptions))
         {
             var transations = await db.Transactions.AsNoTracking()
                                                    .Where(x => x.Date >= from)
@@ -81,6 +82,7 @@ public class BalanceService
         }
     }
 
+    // TODO: fix this
     public double GetCurrentBalance(int accountId)
     {
         return 400;

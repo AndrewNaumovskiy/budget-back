@@ -2,6 +2,7 @@
 using Budget.API.Services;
 using Budget.API.Models.RequestModels;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Budget.API.Controllers;
 
@@ -10,17 +11,22 @@ namespace Budget.API.Controllers;
 public class IncomeController : ControllerBase
 {
     private readonly IncomeService _incomeService;
+    private readonly DatabaseSelectorService _databaseSelectorService;
 
-    public IncomeController(IncomeService incomeService)
+    public IncomeController(IncomeService incomeService, DatabaseSelectorService databaseSelectorService)
     {
         _incomeService = incomeService;
+        _databaseSelectorService = databaseSelectorService;
     }
 
     [HttpGet]
+    [Authorize]
     public async Task<ActionResult<ResponseModel<GetIncomeData, IError>>> GetIncomes(
         [FromQuery] DateTime from, DateTime to, string? sortBy, int? account, int? category)
     {
-        var expenses = await _incomeService.GetIncomes(from, to, sortBy, account, category);
+        var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
+
+        var expenses = await _incomeService.GetIncomes(from, to, sortBy, account, category, dbOptions);
 
         return Ok(new ResponseModel<GetIncomeData, IError>()
         {
@@ -29,9 +35,12 @@ public class IncomeController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize]
     public async Task<ActionResult<ResponseModel<StatusResponseData, IError>>> AddIncome([FromBody] AddIncomeRequestModel request)
     {
-        await _incomeService.AddExpense(request);
+        var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
+
+        await _incomeService.AddIncome(request, dbOptions);
 
         return Ok(new ResponseModel<StatusResponseData, IError>()
         {
@@ -40,10 +49,13 @@ public class IncomeController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize]
     [Route("categories")]
     public async Task<ActionResult<ResponseModel<GetCategoriesData, IError>>> GetCategories()
     {
-        var categories = await _incomeService.GetCategoriesMeow();
+        var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
+
+        var categories = await _incomeService.GetCategoriesMeow(dbOptions);
 
         return Ok(new ResponseModel<GetCategoriesData, IError>()
         {

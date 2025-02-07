@@ -9,13 +9,12 @@ public class TransferService
 {
     private const int TransferSubCategoryId = 35;
 
-    private readonly IDbContextFactory<BudgetDbContext> _dbContext;
-    public TransferService(IDbContextFactory<BudgetDbContext> dbContext)
+    public TransferService()
     {
-        _dbContext = dbContext;
+        // TODO: find Id of Transfer subcategory
     }
 
-    public async Task AddTransfer(AddTransferRequestModel request)
+    public async Task AddTransfer(AddTransferRequestModel request, DbContextOptions<BudgetDbContext> dbOptions)
     {
         var fromTransaction = new TransactionDbModel()
         {
@@ -24,7 +23,7 @@ public class TransferService
             AccountId = request.FromAccountId,
             CategoryId = TransferSubCategoryId,
             Desc = request.Description,
-            Type = TransactionType.Transfer
+            Type = TransactionType.TransferFrom
         };
 
         var toTransaction = new TransactionDbModel()
@@ -34,10 +33,10 @@ public class TransferService
             AccountId = request.ToAccountId,
             CategoryId = TransferSubCategoryId,
             Desc = request.Description,
-            Type = TransactionType.Transfer
+            Type = TransactionType.TransferTo
         };
 
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(dbOptions))
         {
             var fromAccount = await db.Accounts.FirstOrDefaultAsync(x => x.Id == request.FromAccountId);
             var toAccount = await db.Accounts.FirstOrDefaultAsync(x => x.Id == request.ToAccountId);

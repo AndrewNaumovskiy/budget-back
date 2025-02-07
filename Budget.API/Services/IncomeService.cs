@@ -9,15 +9,13 @@ namespace Budget.API.Services;
 public class IncomeService
 {
     private readonly CurrencyRateService _currencyRateService;
-    private readonly IDbContextFactory<BudgetDbContext> _dbContext;
 
-    public IncomeService(CurrencyRateService currencyRateService, IDbContextFactory<BudgetDbContext> dbContext)
+    public IncomeService(CurrencyRateService currencyRateService)
     {
-        _dbContext = dbContext;
         _currencyRateService = currencyRateService;
     }
 
-    public async Task AddExpense(AddIncomeRequestModel request)
+    public async Task AddIncome(AddIncomeRequestModel request, DbContextOptions<BudgetDbContext> dbOptions)
     {
         var currencyRate = await _currencyRateService.GetUsdToUah();
 
@@ -33,7 +31,7 @@ public class IncomeService
             CurrencyRate = currencyRate
         };
 
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(dbOptions))
         {
             var account = await db.Accounts.FirstOrDefaultAsync(x => x.Id == request.AccountId);
 
@@ -47,12 +45,12 @@ public class IncomeService
         }
     }
 
-    public async Task<List<TransactionDto>> GetIncomes(DateTime from, DateTime to, string? sortBy, int? account, int? category)
+    public async Task<List<TransactionDto>> GetIncomes(DateTime from, DateTime to, string? sortBy, int? account, int? category, DbContextOptions<BudgetDbContext> dbOptions)
     {
         var start = new DateTime(from.Year, from.Month, from.Day, 0, 0, 0);
         var end = new DateTime(to.Year, to.Month, to.Day, 23, 59, 59);
 
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(dbOptions))
         {
             var query = db.Transactions.AsNoTracking()
                                        .Where(x => x.Type == TransactionType.Income)
@@ -85,11 +83,11 @@ public class IncomeService
         }
     }
 
-    public async Task<List<CategoryDto>> GetCategoriesMeow()
+    public async Task<List<CategoryDto>> GetCategoriesMeow(DbContextOptions<BudgetDbContext> dbOptions)
     {
         List<CategoryDto> result = new();
 
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(dbOptions))
         {
             var temp = await db.Categories.AsNoTracking()
                                           .Where(x => x.Id == 0)

@@ -35,10 +35,13 @@ namespace Budget.API.Controllers
 
         // TODO: move to statistics controller
         [HttpGet]
+        [Authorize]
         [Route("incomeExpenseChart")]
         public async Task<ActionResult<ResponseModel<GetIncomeExpenseChartData, IError>>> GetIncomeExpenseChart()
         {
-            var (incomeRes, expenseRes) = await _balanceService.GetIncomeExpenseChart();
+            var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
+
+            var (incomeRes, expenseRes) = await _balanceService.GetIncomeExpenseChart(dbOptions);
 
             return Ok(new ResponseModel<GetIncomeExpenseChartData, IError>()
             {

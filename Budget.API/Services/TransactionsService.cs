@@ -7,16 +7,9 @@ namespace Budget.API.Services;
 
 public class TransactionsService
 {
-    private readonly IDbContextFactory<BudgetDbContext> _dbContext;
-
-    public TransactionsService(IDbContextFactory<BudgetDbContext> dbContext)
+    public async Task<TransactionDto?> GetTransaction(int id, DbContextOptions<BudgetDbContext> dbOptions)
     {
-        _dbContext = dbContext;
-    }
-
-    public async Task<TransactionDto?> GetTransaction(int id)
-    {
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(dbOptions))
         {
             return await db.Transactions.AsNoTracking()
                                         .Where(x => x.Id == id)
@@ -35,9 +28,9 @@ public class TransactionsService
         }
     }
 
-    public async Task<bool> EditTransaction(int id, EditTransactionRequestModel transaction)
+    public async Task<bool> EditTransaction(int id, EditTransactionRequestModel transaction, DbContextOptions<BudgetDbContext> dbOptions)
     {
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(dbOptions))
         {
             var dbTransaction = await db.Transactions.FirstOrDefaultAsync(x => x.Id == id);
             if (dbTransaction == null)
@@ -57,9 +50,9 @@ public class TransactionsService
         return true;
     }
 
-    public async Task<bool> DeleteTransaction(int id)
+    public async Task<bool> DeleteTransaction(int id, DbContextOptions<BudgetDbContext> dbOptions)
     {
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(dbOptions))
         {
             var dbTransaction = await db.Transactions.FirstOrDefaultAsync(x => x.Id == id);
             if (dbTransaction == null)
@@ -73,7 +66,7 @@ public class TransactionsService
         return true;
     }
 
-    public async Task<List<TransactionDto>> GetRecentTransactions(string pageStr)
+    public async Task<List<TransactionDto>> GetRecentTransactions(string pageStr, DbContextOptions<BudgetDbContext> dbOptions)
     {
         const int PageSize = 5;
         int page = 0;
@@ -82,7 +75,7 @@ public class TransactionsService
             page = pageParsed;
         }
 
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(dbOptions))
         {
             return await db.Transactions.AsNoTracking()
                                         .OrderByDescending(x => x.Date)
@@ -104,7 +97,7 @@ public class TransactionsService
         }
     }
 
-    public async Task<(double, double, double, double)> GetSummary(string yearStr, string monthStr)
+    public async Task<(double, double, double, double)> GetSummary(string yearStr, string monthStr, DbContextOptions<BudgetDbContext> dbOptions)
     {
         double income = 0, expenses = 0, savings = 0, unspecified = 0;
 
@@ -125,7 +118,7 @@ public class TransactionsService
         DateTime from = new DateTime(year, month, 1, 0, 0, 1);
         DateTime to = from.AddMonths(1).AddSeconds(-1);
 
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(dbOptions))
         {
             var transactions = await db.Transactions.AsNoTracking()
                                                     .Where(x => x.Date >= from && x.Date <= to)

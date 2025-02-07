@@ -14,10 +14,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddTransient<CurrencyRateService>();
 builder.Services.AddTransient<BalanceService>();
-//builder.Services.AddTransient<IncomeService>();
-//builder.Services.AddTransient<ExpenseService>();
-//builder.Services.AddTransient<TransferService>();
-//builder.Services.AddTransient<TransactionsService>();
+builder.Services.AddTransient<IncomeService>();
+builder.Services.AddTransient<ExpenseService>();
+builder.Services.AddTransient<TransferService>();
+builder.Services.AddTransient<TransactionsService>();
 builder.Services.AddTransient<AuthService>();
 
 //var lol = new TelegramBotService();

@@ -2,6 +2,7 @@
 using Budget.API.Services;
 using Budget.API.Models.RequestModels;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Budget.API.Controllers;
 
@@ -10,17 +11,22 @@ namespace Budget.API.Controllers;
 public class TransactionsController : ControllerBase
 {
     private readonly TransactionsService _transactionService;
+    private readonly DatabaseSelectorService _databaseSelectorService;
 
-    public TransactionsController(TransactionsService transactionService)
+    public TransactionsController(TransactionsService transactionService, DatabaseSelectorService databaseSelectorService)
     {
         _transactionService = transactionService;
+        _databaseSelectorService = databaseSelectorService;
     }
 
     [HttpGet]
+    [Authorize]
     [Route("{id:int}")]
     public async Task<ActionResult<ResponseModel<GetTransactionData, IError>>> GetTransaction(int id)
     {
-        var transaction = await _transactionService.GetTransaction(id);
+        var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
+
+        var transaction = await _transactionService.GetTransaction(id, dbOptions);
 
         if(transaction == null)
             return NotFound(new ResponseModel<IData, Error>()
@@ -35,10 +41,13 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpPut]
+    [Authorize]
     [Route("{id:int}")]
     public async Task<ActionResult<ResponseModel<StatusResponseData, IError>>> GetTransaction(int id, [FromBody] EditTransactionRequestModel transaction)
     {
-        var temp = await _transactionService.EditTransaction(id, transaction);
+        var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
+
+        var temp = await _transactionService.EditTransaction(id, transaction, dbOptions);
 
         if(temp == false)
             return NotFound(new ResponseModel<IData, Error>()
@@ -53,10 +62,13 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpDelete]
+    [Authorize]
     [Route("{id:int}")]
     public async Task<ActionResult<ResponseModel<StatusResponseData, IError>>> DeleteTransaction(int id)
     {
-        var temp = await _transactionService.DeleteTransaction(id);
+        var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
+
+        var temp = await _transactionService.DeleteTransaction(id, dbOptions);
 
         if (temp == false)
             return NotFound(new ResponseModel<IData, Error>()
@@ -71,9 +83,12 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize]
     public async Task<ActionResult<ResponseModel<GetRecentTransactionsData, IError>>> GetRecentTransactions([FromQuery] string? page)
     {
-        var recent = await _transactionService.GetRecentTransactions(page);
+        var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
+
+        var recent = await _transactionService.GetRecentTransactions(page, dbOptions);
 
         return Ok(new ResponseModel<GetRecentTransactionsData, IError>()
         {
@@ -82,10 +97,13 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize]
     [Route("summary")]
     public async Task<ActionResult<ResponseModel<GetSummaryData, IError>>> GetSummary([FromQuery] string? year, string? month)
     {
-        var (income, expenses, savings, unspecified) = await _transactionService.GetSummary(year, month);
+        var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
+
+        var (income, expenses, savings, unspecified) = await _transactionService.GetSummary(year, month, dbOptions);
 
         return Ok(new ResponseModel<GetSummaryData, IError>()
         {

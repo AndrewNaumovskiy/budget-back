@@ -55,8 +55,10 @@ public class TelegramBotService : IAsyncDisposable
         _expensesService = expensesService;
         _balanceService = balanceService;
 
+        return;
+
         _bot = new TelegramBotClient(BotToken);
-        
+
         Task.Factory.StartNew(RunBot);
     }
 
@@ -213,6 +215,7 @@ public class TelegramBotService : IAsyncDisposable
     {
         switch (_state)
         {
+            case BotState.MainMenu:
             case BotState.BalanceMenu:
             case BotState.AddEntry:
             case BotState.ViewEntries:
@@ -313,14 +316,14 @@ public class TelegramBotService : IAsyncDisposable
 
         _description = update.Message.Text;
 
-        await _expensesService.AddExpense(new AddExpensesRequestModel()
-        {
-            Amount = _amount,
-            AccountId = _accountId,
-            CategoryId = _subCategoryId,
-            Date = DateTime.UtcNow,
-            Description = _description
-        });
+        //await _expensesService.AddExpense(new AddExpensesRequestModel()
+        //{
+        //    Amount = _amount,
+        //    AccountId = _accountId,
+        //    CategoryId = _subCategoryId,
+        //    Date = DateTime.UtcNow,
+        //    Description = _description
+        //});
 
         var currentBalance = _balanceService.GetCurrentBalance(_accountId);
 

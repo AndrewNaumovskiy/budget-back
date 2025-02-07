@@ -10,6 +10,7 @@ namespace Budget.API.Services;
 
 public class ExpenseService
 {
+    // TODO: remove this caching
     private List<CategoryDbModel> _categories = new();
     private List<SubCategoryDbModel> _subCategories = new();
     private List<AccountDbModel> _accounts = new();
@@ -19,47 +20,45 @@ public class ExpenseService
     private List<string> _accountsStr = new();
 
     private readonly CurrencyRateService _currencyRateService;
-    private readonly IDbContextFactory<BudgetDbContext> _dbContext;
 
-    public ExpenseService(CurrencyRateService currencyRateService, IDbContextFactory<BudgetDbContext> dbContext)
+    public ExpenseService(CurrencyRateService currencyRateService)
     {
-        _dbContext = dbContext;
         _currencyRateService = currencyRateService;
 
-        _ = InitService();
+        //_ = InitService();
     }
 
-    public async Task InitService()
-    {
-        using(var db = await _dbContext.CreateDbContextAsync())
-        {
-            var categories = await db.Categories.AsNoTracking()
-                                                .Include(x => x.SubCategories)
-                                                .Skip(1)
-                                                .ToListAsync();
+    //public async Task InitService()
+    //{
+    //    using(var db = await _dbContext.CreateDbContextAsync())
+    //    {
+    //        var categories = await db.Categories.AsNoTracking()
+    //                                            .Include(x => x.SubCategories)
+    //                                            .Skip(1)
+    //                                            .ToListAsync();
+    //
+    //        foreach(var item in categories)
+    //        {
+    //            foreach(var subCat in item.SubCategories)
+    //            {
+    //                _subCategories.Add(subCat);
+    //            }
+    //
+    //            item.SubCategories = null;
+    //
+    //            _categories.Add(item);
+    //        }
+    //
+    //        _accounts = await db.Accounts.AsNoTracking()
+    //                                     .ToListAsync();
+    //    }
+    //
+    //    _categoriesStr = _categories.Select(x => x.Name).ToList();
+    //    _subCategoriesStr = _subCategories.Select(x => x.Name).ToList();
+    //    _accountsStr = _accounts.Select(x => x.Name).ToList();
+    //}
 
-            foreach(var item in categories)
-            {
-                foreach(var subCat in item.SubCategories)
-                {
-                    _subCategories.Add(subCat);
-                }
-
-                item.SubCategories = null;
-
-                _categories.Add(item);
-            }
-
-            _accounts = await db.Accounts.AsNoTracking()
-                                         .ToListAsync();
-        }
-
-        _categoriesStr = _categories.Select(x => x.Name).ToList();
-        _subCategoriesStr = _subCategories.Select(x => x.Name).ToList();
-        _accountsStr = _accounts.Select(x => x.Name).ToList();
-    }
-
-    public async Task AddExpense(AddExpensesRequestModel request)
+    public async Task AddExpense(AddExpensesRequestModel request, DbContextOptions<BudgetDbContext> dbOptions)
     {
         var currencyRate = await _currencyRateService.GetUsdToUah();
 
@@ -75,7 +74,7 @@ public class ExpenseService
             CurrencyRate = currencyRate
         };
 
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(dbOptions))
         {
             var account = await db.Accounts.FirstOrDefaultAsync(x => x.Id == request.AccountId);
 
@@ -90,12 +89,12 @@ public class ExpenseService
     }
 
 
-    public async Task<List<TransactionDto>> GetExpenses(DateTime from, DateTime to, string? sortBy, int? account, int? category)
+    public async Task<List<TransactionDto>> GetExpenses(DateTime from, DateTime to, string? sortBy, int? account, int? category, DbContextOptions<BudgetDbContext> dbOptions)
     {
         var start = new DateTime(from.Year, from.Month, from.Day, 0, 0, 0);
         var end = new DateTime(to.Year, to.Month, to.Day, 23, 59, 59);
 
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(dbOptions))
         {
             var query = db.Transactions.AsNoTracking()
                                        .Where(x => x.Type == TransactionType.Expense)
@@ -128,9 +127,10 @@ public class ExpenseService
         }
     }
 
+    // TODO: fix this
     public async Task<List<TransactionDto>> GetExpenses(int pageSize, int page = 0)
     {
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(null))
         {
             return await db.Transactions.AsNoTracking()
                                         .Where(x => x.Type == TransactionType.Expense)
@@ -179,11 +179,11 @@ public class ExpenseService
         return _accounts.FirstOrDefault(x => x.Name == name)!.Id;
     }
 
-    public async Task<List<CategoryDto>> GetCategoriesMeow()
+    public async Task<List<CategoryDto>> GetCategoriesMeow(DbContextOptions<BudgetDbContext> dbOptions)
     {
         List<CategoryDto> result = new();
 
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(dbOptions))
         {
             var temp = await db.Categories.AsNoTracking()
                                           .Where(x => !(x.Id == 0 || x.Id == 9 || x.Id == 10))
