@@ -6,7 +6,8 @@ namespace Budget.API.Models.DbModels.Admin;
 public class UserDbModel
 {
     public int Id { get; set; }
-    public required string Username { get; set; }
-    public required string PasswordHash { get; set; }
+    public string Username { get; set; }
+    public string PasswordHash { get; set; }
+    public string Database { get; set; }
     public int TelegramId { get; set; }
 }

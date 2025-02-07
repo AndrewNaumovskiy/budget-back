@@ -8,11 +8,9 @@ namespace Budget.API.Services;
 public class BalanceService
 {
     private readonly CurrencyRateService _currencyRateService;
-    private readonly IDbContextFactory<BudgetDbContext> _dbContext;
 
-    public BalanceService(CurrencyRateService currencyRateService, IDbContextFactory<BudgetDbContext> dbContext)
+    public BalanceService(CurrencyRateService currencyRateService)
     {
-        _dbContext = dbContext;
         _currencyRateService = currencyRateService;
     }
 
@@ -25,7 +23,7 @@ public class BalanceService
             currencyRate = 1 / temp;
         }
 
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(null))
         {
             var accounts = await db.Accounts.ToListAsync();
             double ukrsib = accounts[0].Balance;
@@ -37,9 +35,9 @@ public class BalanceService
     }
 
 
-    public async Task<List<AccountDto>> GetAccounts()
+    public async Task<List<AccountDto>> GetAccounts(DbContextOptions<BudgetDbContext> dbOptions)
     {
-        using(var db = await _dbContext.CreateDbContextAsync())
+        using(var db = new BudgetDbContext(dbOptions))
         {
             return await db.Accounts.AsNoTracking()
                                     .Select(x => new AccountDto()
@@ -56,12 +54,12 @@ public class BalanceService
     {
         List<double> incomeRes = new(), expenseRes = new();
 
-        const int monthsCount = 6;
+        const int monthsCount = 5;
 
         DateTime now = DateTime.UtcNow;
         DateTime from = new DateTime(now.Year, now.Month, 1, 0,0,1).AddMonths(-monthsCount);
 
-        using (var db = await _dbContext.CreateDbContextAsync())
+        using (var db = new BudgetDbContext(null))
         {
             var transations = await db.Transactions.AsNoTracking()
                                                    .Where(x => x.Date >= from)

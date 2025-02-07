@@ -12,24 +12,23 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-
-builder.Services.AddSingleton<ExpenseService>();
-
-builder.Services.AddTransient<BalanceService>();
-builder.Services.AddTransient<IncomeService>();
-builder.Services.AddTransient<TransferService>();
-builder.Services.AddTransient<TransactionsService>();
 builder.Services.AddTransient<CurrencyRateService>();
+builder.Services.AddTransient<BalanceService>();
+//builder.Services.AddTransient<IncomeService>();
+//builder.Services.AddTransient<ExpenseService>();
+//builder.Services.AddTransient<TransferService>();
+//builder.Services.AddTransient<TransactionsService>();
 builder.Services.AddTransient<AuthService>();
 
 //var lol = new TelegramBotService();
-builder.Services.AddSingleton<TelegramBotService>();
+//builder.Services.AddSingleton<TelegramBotService>();
+builder.Services.AddSingleton<DatabaseSelectorService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-builder.Services.AddPooledDbContextFactory<BudgetDbContext>(options =>
+builder.Services.AddPooledDbContextFactory<AdminDbContext>(options =>
 {
     // server=localhost;database=stars;uid=root;password=admin
     var serverVersion = ServerVersion.AutoDetect(connString);
@@ -96,7 +95,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-_ = app.Services.GetService<TelegramBotService>();
-_ = app.Services.GetService<ExpenseService>();
+//_ = app.Services.GetService<TelegramBotService>();
+//_ = app.Services.GetService<ExpenseService>();
+_ = app.Services.GetService<DatabaseSelectorService>();
 
 app.Run();

@@ -10,10 +10,12 @@ namespace Budget.API.Controllers
     public class BalanceController : ControllerBase
     {
         private readonly BalanceService _balanceService;
+        private readonly DatabaseSelectorService _databaseSelectorService;
 
-        public BalanceController(BalanceService balanceService)
+        public BalanceController(BalanceService balanceService, DatabaseSelectorService databaseSelectorService)
         {
             _balanceService = balanceService;
+            _databaseSelectorService = databaseSelectorService;
         }
 
         [HttpGet]
@@ -21,7 +23,9 @@ namespace Budget.API.Controllers
         [Route("accounts")]
         public async Task<ActionResult<ResponseModel<GetAccountsData, IError>>> GetAccounts()
         {
-            var accounts = await _balanceService.GetAccounts();
+            var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
+
+            var accounts = await _balanceService.GetAccounts(dbOptions);
 
             return Ok(new ResponseModel<GetAccountsData, IError>()
             {
