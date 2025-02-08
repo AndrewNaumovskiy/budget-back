@@ -75,7 +75,9 @@ public class IncomeService
                                                 Date = x.Date,
                                                 Amount = x.Amount,
                                                 Description = x.Desc,
+                                                AccountId = x.Account.Id,
                                                 AccountName = x.Account.Name,
+                                                CategoryId = x.Category.Id,
                                                 CategoryName = x.Category.Name,
                                                 Balance = x.BalanceAfterTransaction
                                             })
