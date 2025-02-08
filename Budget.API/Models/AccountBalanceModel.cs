@@ -1,16 +1,29 @@
 ﻿using System.Globalization;
+using Budget.API.Models.DbModels;
 
 namespace Budget.API.Models;
 
 public class AccountBalanceModel
 {
-    public string UkrSib { get; set; }
-    public string Privat { get; set; }
-    public string Cash { get; set; }
-    public string Total { get; set; }
-
-    public AccountBalanceModel(double ukrsib, double privat, double cash, double currencyRate, bool inUah)
+    public double Amount { get; set; }
+    public string Name { get; set; }
+    public string Emoji { get; set; }
+    public string Balance { get; set; }
+    
+    private static Dictionary<string, string> _accountEmojii = new()
     {
+        { "UkrSib", "💳" },
+        { "Privat", "🏧" },
+        { "Cash", "💵" },
+        { "Total", "📈" },
+    };
+
+    public AccountBalanceModel(AccountDbModel dbModel, double currencyRate, bool inUah)
+    {
+        Amount = dbModel.Balance;
+        Name = dbModel.Name;
+        Emoji = _accountEmojii[Name];
+
         CultureInfo culture;
         if (inUah)
         {
@@ -20,14 +33,36 @@ public class AccountBalanceModel
         {
             culture = new CultureInfo("en-US");
 
-            ukrsib *= currencyRate;
-            privat *= currencyRate;
-            cash *= currencyRate;
+            Amount *= currencyRate;
         }
 
-        UkrSib = ukrsib.ToString("C", culture);
-        Privat = privat.ToString("C", culture);
-        Cash = cash.ToString("C", culture);
-        Total = (ukrsib + privat + cash).ToString("C", culture);
+        Balance = Amount.ToString("C", culture);
+    }
+
+    public AccountBalanceModel(double sum, bool inUah)
+    {
+        Amount = sum;
+        Name = "Total";
+        Emoji = _accountEmojii[Name];
+
+        CultureInfo culture;
+        if (inUah)
+        {
+            culture = new CultureInfo("uk-UA");
+        }
+        else
+        {
+            culture = new CultureInfo("en-US");
+        }
+
+        Balance = Amount.ToString("C", culture);
+    }
+
+    public override string ToString()
+    {
+        if(Name == "Total")
+            return $"{Emoji} *{Name}*: *{Balance}*";
+
+        return $"{Emoji} *{Name}*: {Balance}";
     }
 }

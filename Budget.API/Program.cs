@@ -20,7 +20,7 @@ builder.Services.AddTransient<TransferService>();
 builder.Services.AddTransient<TransactionsService>();
 builder.Services.AddTransient<AuthService>();
 
-//builder.Services.AddSingleton<TelegramBotService>();
+builder.Services.AddSingleton<TelegramBotService>();
 builder.Services.AddSingleton<DatabaseSelectorService>();
 
 builder.Services.AddControllers();
@@ -94,7 +94,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-//_ = app.Services.GetService<TelegramBotService>();
+_ = app.Services.GetService<TelegramBotService>();
 //_ = app.Services.GetService<ExpenseService>();
 _ = app.Services.GetService<DatabaseSelectorService>();
 

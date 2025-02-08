@@ -14,28 +14,6 @@ public class BalanceService
         _currencyRateService = currencyRateService;
     }
 
-    public async Task<AccountBalanceModel> GetBalance(bool inUah)
-    {
-        double currencyRate = 0.0;
-        if (!inUah)
-        {
-            var temp = await _currencyRateService.GetUsdToUah();
-            currencyRate = 1 / temp;
-        }
-
-        // TODO: fix this
-        using (var db = new BudgetDbContext(null))
-        {
-            var accounts = await db.Accounts.ToListAsync();
-            double ukrsib = accounts[0].Balance;
-            double privat = accounts[1].Balance;
-            double cash = accounts[2].Balance;
-
-            return new AccountBalanceModel(ukrsib, privat, cash, currencyRate, inUah);
-        }
-    }
-
-
     public async Task<List<AccountDto>> GetAccounts(DbContextOptions<BudgetDbContext> dbOptions)
     {
         using(var db = new BudgetDbContext(dbOptions))
@@ -79,6 +57,31 @@ public class BalanceService
             }
 
             return (incomeRes, expenseRes);
+        }
+    }
+
+
+    // TELEGRAM ---
+
+    public async Task<List<string>> GetBalance(DbContextOptions<BudgetDbContext> dbOptions, bool inUah)
+    {
+        double currencyRate = 0.0;
+        if (!inUah)
+        {
+            var temp = await _currencyRateService.GetUsdToUah();
+            currencyRate = 1 / temp;
+        }
+
+        using (var db = new BudgetDbContext(dbOptions))
+        {
+            var accounts = await db.Accounts.AsNoTracking()
+                                            .ToListAsync();
+
+            var balances = accounts.Select(x => new AccountBalanceModel(x, currencyRate, inUah)).ToList();
+            var total = balances.Sum(x => x.Amount);
+            balances.Add(new AccountBalanceModel(total, inUah));
+
+            return balances.Select(x => x.ToString()).ToList();
         }
     }
 

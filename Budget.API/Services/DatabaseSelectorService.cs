@@ -9,6 +9,7 @@ public class DatabaseSelectorService
     private readonly IDbContextFactory<AdminDbContext> _dbContext;
 
     private List<UserDbModel> _users;
+
     private ServerVersion _server;
 
     public DatabaseSelectorService(IDbContextFactory<AdminDbContext> dbContext)
@@ -36,11 +37,26 @@ public class DatabaseSelectorService
     public DbContextOptions<BudgetDbContext> GetUserDatabase(string username)
     {
         var db = _users.FirstOrDefault(x => x.Username == username).Database;
-        var connString = $"";
+        return CreateOptions(db);
+    }
+
+    public DbContextOptions<BudgetDbContext> GetUserDatabase(long telegramId)
+    {
+        var db = _users.FirstOrDefault(x => x.TelegramId == telegramId).Database;
+        return CreateOptions(db);
+    }
+
+    public bool CheckUser(long telegramUserId)
+    {
+        return _users.Any(x => x.TelegramId == telegramUserId);
+    }
+
+    private DbContextOptions<BudgetDbContext> CreateOptions(string databaseName)
+    {
 
         var builder = new DbContextOptionsBuilder<BudgetDbContext>();
 
-        if(_server == null)
+        if (_server == null)
             _server = ServerVersion.AutoDetect(connString);
 
         builder.UseMySql(connString, _server);
