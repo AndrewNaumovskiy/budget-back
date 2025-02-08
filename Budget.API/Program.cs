@@ -12,6 +12,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.Services.AddMemoryCache();
+
 builder.Services.AddTransient<CurrencyRateService>();
 builder.Services.AddTransient<BalanceService>();
 builder.Services.AddTransient<IncomeService>();

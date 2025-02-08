@@ -1,62 +1,22 @@
 ﻿using Budget.API.Helpers;
-using Budget.API.Models.DbModels;
 using Budget.API.Models.Dtos;
+using Budget.API.Models.DbModels;
 using Budget.API.Models.RequestModels;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Budget.API.Services;
 
 public class ExpenseService
 {
-    // TODO: remove this caching
-    private List<CategoryDbModel> _categories = new();
-    private List<SubCategoryDbModel> _subCategories = new();
-    private List<AccountDbModel> _accounts = new();
-
-    private List<string> _categoriesStr = new();
-    private List<string> _subCategoriesStr = new();
-    private List<string> _accountsStr = new();
-
+    private readonly IMemoryCache _cache;
     private readonly CurrencyRateService _currencyRateService;
 
-    public ExpenseService(CurrencyRateService currencyRateService)
+    public ExpenseService(IMemoryCache cache, CurrencyRateService currencyRateService)
     {
+        _cache = cache;
         _currencyRateService = currencyRateService;
-
-        //_ = InitService();
     }
-
-    //public async Task InitService()
-    //{
-    //    using(var db = await _dbContext.CreateDbContextAsync())
-    //    {
-    //        var categories = await db.Categories.AsNoTracking()
-    //                                            .Include(x => x.SubCategories)
-    //                                            .Skip(1)
-    //                                            .ToListAsync();
-    //
-    //        foreach(var item in categories)
-    //        {
-    //            foreach(var subCat in item.SubCategories)
-    //            {
-    //                _subCategories.Add(subCat);
-    //            }
-    //
-    //            item.SubCategories = null;
-    //
-    //            _categories.Add(item);
-    //        }
-    //
-    //        _accounts = await db.Accounts.AsNoTracking()
-    //                                     .ToListAsync();
-    //    }
-    //
-    //    _categoriesStr = _categories.Select(x => x.Name).ToList();
-    //    _subCategoriesStr = _subCategories.Select(x => x.Name).ToList();
-    //    _accountsStr = _accounts.Select(x => x.Name).ToList();
-    //}
 
     public async Task AddExpense(AddExpensesRequestModel request, DbContextOptions<BudgetDbContext> dbOptions)
     {
@@ -87,7 +47,6 @@ public class ExpenseService
             await db.SaveChangesAsync();
         }
     }
-
 
     public async Task<List<TransactionDto>> GetExpenses(DateTime from, DateTime to, string? sortBy, int? account, int? category, DbContextOptions<BudgetDbContext> dbOptions)
     {
@@ -127,6 +86,73 @@ public class ExpenseService
         }
     }
 
+    public async Task<List<CategoryDto>> GetCategories(string username, DbContextOptions<BudgetDbContext> dbOptions)
+    {
+        if(_cache.TryGetValue($"CATEG_{username}", out List<CategoryDto> categories))
+        {
+            return categories;
+        }
+
+        List<CategoryDto> result = new();
+
+        using (var db = new BudgetDbContext(dbOptions))
+        {
+            var temp = await db.Categories.AsNoTracking()
+                                          .Where(x => !(x.Id == 0 || x.Id == 9 || x.Id == 10))
+                                          .Include(x => x.SubCategories)
+                                          .ToListAsync();
+
+            foreach (var item in temp)
+            {
+                CategoryDto cat = new(item.Id, item.Name);
+
+                foreach (var sub in item.SubCategories)
+                {
+                    cat.SubCategories.Add(new(sub.Id, sub.Name));
+                }
+                result.Add(cat);
+            }
+        }
+
+        _cache.Set($"CATEG_{username}", result);
+
+        return result;
+    }
+
+    // TELEGRAM ---
+
+    public async Task<List<string>> GetSubCategories(string username, DbContextOptions<BudgetDbContext> dbOptions, string category)
+    {
+        List<SubCategoryDto> subCategories = null;
+
+        if(!_cache.TryGetValue($"CATEG_{username}", out List<CategoryDto> categories))
+        {
+            categories = await GetCategories(username, dbOptions);
+        }
+
+        subCategories = categories.FirstOrDefault(x => x.Name == category).SubCategories;
+        return subCategories.Select(x => x.Name).ToList();
+    }
+
+    public async Task<int> GetCategoryIdByName(string username, DbContextOptions<BudgetDbContext> dbOptions, string subCategoryName)
+    {
+        List<SubCategoryDto> subCategories = null;
+
+        if (!_cache.TryGetValue($"CATEG_{username}", out List<CategoryDto> categories))
+        {
+            categories = await GetCategories(username, dbOptions);
+        }
+
+        foreach (var item in categories)
+            foreach (var subCat in item.SubCategories)
+                if (subCat.Name == subCategoryName)
+                {
+                    return subCat.Id;
+                }
+
+        return -1;
+    }
+
     // TODO: fix this
     public async Task<List<TransactionDto>> GetExpenses(int pageSize, int page = 0)
     {
@@ -151,57 +177,5 @@ public class ExpenseService
                                         })
                                         .ToListAsync();
         }
-    }
-
-    public List<string> GetCategories()
-    {
-        return _categoriesStr;
-    }
-
-    public List<string> GetSubCategories(string categoryName)
-    {
-        var catId = _categories.First(x => x.Name == categoryName).Id;
-        return _subCategories.Where(x => x.CategoryId == catId).Select(x => x.Name).ToList();
-    }
-
-    public int GetCategoryIdByName(string name)
-    {
-        return _subCategories.First(x => x.Name == name).Id;
-    }
-
-    public List<string> GetAccounts()
-    {
-        return _accountsStr;
-    }
-
-    public int GetAccountIdByName(string name)
-    {
-        return _accounts.FirstOrDefault(x => x.Name == name)!.Id;
-    }
-
-    public async Task<List<CategoryDto>> GetCategoriesMeow(DbContextOptions<BudgetDbContext> dbOptions)
-    {
-        List<CategoryDto> result = new();
-
-        using (var db = new BudgetDbContext(dbOptions))
-        {
-            var temp = await db.Categories.AsNoTracking()
-                                          .Where(x => !(x.Id == 0 || x.Id == 9 || x.Id == 10))
-                                          .Include(x => x.SubCategories)
-                                          .ToListAsync();
-
-            foreach(var item in temp)
-            {
-                CategoryDto cat = new(item.Id, item.Name);
-
-                foreach(var sub in item.SubCategories)
-                {
-                    cat.SubCategories.Add(new(sub.Id, sub.Name));
-                }
-                result.Add(cat);
-            }
-        }
-
-        return result;
     }
 }

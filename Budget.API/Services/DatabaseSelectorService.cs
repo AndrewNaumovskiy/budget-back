@@ -40,10 +40,10 @@ public class DatabaseSelectorService
         return CreateOptions(db);
     }
 
-    public DbContextOptions<BudgetDbContext> GetUserDatabase(long telegramId)
+    public (string, DbContextOptions<BudgetDbContext>) GetUserDatabase(long telegramId)
     {
-        var db = _users.FirstOrDefault(x => x.TelegramId == telegramId).Database;
-        return CreateOptions(db);
+        var db = _users.FirstOrDefault(x => x.TelegramId == telegramId);
+        return (db.Username, CreateOptions(db.Database));
     }
 
     public bool CheckUser(long telegramUserId)

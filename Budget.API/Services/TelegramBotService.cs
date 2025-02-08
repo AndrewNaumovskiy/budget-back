@@ -5,6 +5,7 @@ using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 using System.Globalization;
 using System.Diagnostics;
+using Budget.API.Models.RequestModels;
 
 namespace Budget.API.Services;
 
@@ -200,7 +201,7 @@ public class TelegramBotService : IAsyncDisposable
     {
         _state = BotState.BalanceMenu;
 
-        var dbOptions = _databaseSelectorService.GetUserDatabase(userId);
+        var (_, dbOptions) = _databaseSelectorService.GetUserDatabase(userId);
         var balance = await _balanceService.GetBalance(dbOptions, inUah);
 
         var balanceMessage = $"🌟 *My Balances* 🌟\n\n{string.Join("\n\n", balance)}";
@@ -271,24 +272,30 @@ public class TelegramBotService : IAsyncDisposable
     {
         _state = BotState.EnterExpensesCategory;
 
+        // TODO: fix can be overwritten by another user
         if (!double.TryParse(update.Message.Text.Replace('.',','), out _amount))
         {
             await OpenMainMenu(update.Message.Chat.Id, cancellationToken);
             return;
         }
-        
-        var categories = _expensesService.GetCategories();
+
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        var categories = await _expensesService.GetCategories(username, dbOptions);
+
+        var categoriesStr = categories.Select(x => x.Name).ToList();
 
         const string message = "📂 Now, choose a category for this expense:";
-        await _bot.SendMessage(update.Message.Chat.Id, message, replyMarkup: TelegramKeyboards.ExpensesCategoryKeyboard(categories), cancellationToken: cancellationToken);
+        await _bot.SendMessage(update.Message.Chat.Id, message, replyMarkup: TelegramKeyboards.ExpensesCategoryKeyboard(categoriesStr), cancellationToken: cancellationToken);
     }
 
     private async Task HandleEnterExpensesCategory(Update update, CancellationToken cancellationToken)
     {
         _state = BotState.EnterExpensesSubCategory;
 
-        var category = update.Message.Text;
-        var subCategories = _expensesService.GetSubCategories(category);
+        var category = update.Message!.Text;
+
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        var subCategories = await _expensesService.GetSubCategories(username, dbOptions, category);
 
         const string message = "📂 Now, choose a subcategory for this expense:";
         await _bot.SendMessage(update.Message.Chat.Id, message, replyMarkup: TelegramKeyboards.ExpensesCategoryKeyboard(subCategories), cancellationToken: cancellationToken);
@@ -299,12 +306,15 @@ public class TelegramBotService : IAsyncDisposable
         _state = BotState.EnterExpensesAccount;
 
         _subCategoryName = update.Message.Text;
-        _subCategoryId = _expensesService.GetCategoryIdByName(_subCategoryName);
 
-        var accounts = _expensesService.GetAccounts();
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        _subCategoryId = await _expensesService.GetCategoryIdByName(username, dbOptions, _subCategoryName);
+
+        var accounts = await _balanceService.GetAccounts(username, dbOptions);
+        var accountsStr = accounts.Select(x => x.Name).ToList();
 
         const string message = "🏦 Which account should this expense be deducted from?";
-        await _bot.SendMessage(update.Message.Chat.Id, "Enter account", replyMarkup: TelegramKeyboards.ExpensesAccountKeyboard(accounts), cancellationToken: cancellationToken);
+        await _bot.SendMessage(update.Message.Chat.Id, "Enter account", replyMarkup: TelegramKeyboards.ExpensesAccountKeyboard(accountsStr), cancellationToken: cancellationToken);
     }
 
     private async Task HandleEnterExpensesAccount(Update update, CancellationToken cancellationToken)
@@ -312,7 +322,9 @@ public class TelegramBotService : IAsyncDisposable
         _state = BotState.EnterExpensesDesc;
 
         _accountName = update.Message.Text;
-        _accountId = _expensesService.GetAccountIdByName(_accountName);
+
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        _accountId = await _balanceService.GetAccountIdByName(username, dbOptions, _accountName);
 
         const string message = "📝 Optional: Add a short description for this expense.";
         await _bot.SendMessage(update.Message.Chat.Id, message, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
@@ -324,24 +336,27 @@ public class TelegramBotService : IAsyncDisposable
 
         _description = update.Message.Text;
 
-        //await _expensesService.AddExpense(new AddExpensesRequestModel()
-        //{
-        //    Amount = _amount,
-        //    AccountId = _accountId,
-        //    CategoryId = _subCategoryId,
-        //    Date = DateTime.UtcNow,
-        //    Description = _description
-        //});
+        var req = new AddExpensesRequestModel()
+        {
+            Amount = _amount,
+            AccountId = _accountId,
+            CategoryId = _subCategoryId,
+            Date = DateTime.UtcNow,
+            Description = _description
+        };
 
-        var currentBalance = _balanceService.GetCurrentBalance(_accountId);
+        var (_, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        await _expensesService.AddExpense(req, dbOptions);
 
-        await ConfirmExpensesPage(update.Message.Chat.Id, cancellationToken);
+        var currentBalance = _balanceService.GetCurrentBalance(_accountId, dbOptions);
+
+        await ConfirmExpensesPage(update.Message.Chat.Id, currentBalance, cancellationToken);
     }
 
-    private async Task ConfirmExpensesPage(long userId, CancellationToken cancellationToken)
+    private async Task ConfirmExpensesPage(long userId, double balance, CancellationToken cancellationToken)
     {
         _state = BotState.MainMenu;
-        var message = $"💸 *Expense added* 💸\n\n💵 *Amount*: `{_amount.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("uk-UA"))}`\n\n📂 *Category*: `{_subCategoryName}`\n\n🏦 *Account*: `{_accountName}`\n\n📝 *Description*: `{_description}`";
+        var message = $"💸 *Expense added* 💸\n\n💵 *Amount*: {_amount.ToString("C", CultureInfo.GetCultureInfo("uk-UA"))}\n\n📂 *Category*: {_subCategoryName}\n\n🏦 *Account*: {_accountName}\n\n📝 *Description*: {_description}\n\n📈 *Balance*: *{balance.ToString("C", CultureInfo.GetCultureInfo("uk-UA"))}*";
         await _bot.SendMessage(userId, message, parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.MainMenuKeyboard(), cancellationToken: cancellationToken);
     }
     #endregion

@@ -25,7 +25,7 @@ namespace Budget.API.Controllers
         {
             var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
 
-            var accounts = await _balanceService.GetAccounts(dbOptions);
+            var accounts = await _balanceService.GetAccounts(User.Identity.Name, dbOptions);
 
             return Ok(new ResponseModel<GetAccountsData, IError>()
             {

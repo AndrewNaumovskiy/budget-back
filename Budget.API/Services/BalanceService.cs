@@ -2,23 +2,31 @@
 using Budget.API.Models;
 using Budget.API.Models.Dtos;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Budget.API.Services;
 
 public class BalanceService
 {
+    private readonly IMemoryCache _cache;
     private readonly CurrencyRateService _currencyRateService;
 
-    public BalanceService(CurrencyRateService currencyRateService)
+    public BalanceService(IMemoryCache cache, CurrencyRateService currencyRateService)
     {
+        _cache = cache;
         _currencyRateService = currencyRateService;
     }
 
-    public async Task<List<AccountDto>> GetAccounts(DbContextOptions<BudgetDbContext> dbOptions)
+    public async Task<List<AccountDto>> GetAccounts(string username, DbContextOptions<BudgetDbContext> dbOptions)
     {
-        using(var db = new BudgetDbContext(dbOptions))
+        if (_cache.TryGetValue($"ACCS_{username}", out List<AccountDto> accounts))
         {
-            return await db.Accounts.AsNoTracking()
+            return accounts;
+        }
+
+        using (var db = new BudgetDbContext(dbOptions))
+        {
+            accounts = await db.Accounts.AsNoTracking()
                                     .Select(x => new AccountDto()
                                     {
                                         Id = x.Id,
@@ -26,6 +34,10 @@ public class BalanceService
                                         Balance = x.Balance
                                     })
                                     .ToListAsync();
+
+            _cache.Set($"ACCS_{username}", accounts);
+
+            return accounts;
         }
     }
 
@@ -85,9 +97,23 @@ public class BalanceService
         }
     }
 
-    // TODO: fix this
-    public double GetCurrentBalance(int accountId)
+    public async Task<int> GetAccountIdByName(string username, DbContextOptions<BudgetDbContext> dbOptions, string accountName)
     {
-        return 400;
+        if (!_cache.TryGetValue($"ACCS_{username}", out List<AccountDto> accounts))
+        {
+            accounts = await GetAccounts(username, dbOptions);
+        }
+
+        return accounts.FirstOrDefault(x => x.Name == accountName).Id;
+    }
+
+    public double GetCurrentBalance(int accountId, DbContextOptions<BudgetDbContext> dbOptions)
+    {
+        using(var db = new BudgetDbContext(dbOptions))
+        {
+            return db.Accounts.AsNoTracking()
+                              .FirstOrDefault(x => x.Id == accountId)
+                              .Balance;
+        }
     }
 }

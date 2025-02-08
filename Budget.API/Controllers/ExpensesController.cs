@@ -55,7 +55,7 @@ public class ExpensesController : ControllerBase
     {
         var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
 
-        var categories = await _expensesService.GetCategoriesMeow(dbOptions);
+        var categories = await _expensesService.GetCategories(User.Identity.Name, dbOptions);
 
         return Ok(new ResponseModel<GetCategoriesData, IError>()
         {
