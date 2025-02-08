@@ -20,7 +20,6 @@ builder.Services.AddTransient<TransferService>();
 builder.Services.AddTransient<TransactionsService>();
 builder.Services.AddTransient<AuthService>();
 
-//var lol = new TelegramBotService();
 //builder.Services.AddSingleton<TelegramBotService>();
 builder.Services.AddSingleton<DatabaseSelectorService>();
 

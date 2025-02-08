@@ -10,4 +10,6 @@ public class UserDbModel
     public string PasswordHash { get; set; }
     public string Database { get; set; }
     public int TelegramId { get; set; }
+
+    public List<RefreshTokenDbModel> RefreshTokens { get; set; }
 }

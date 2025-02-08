@@ -1,0 +1,17 @@
+meta {
+  name: Refresh
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{IP}}/apibudget/auth/refresh
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "refreshToken": "sTUhL7HQcJhyzvVgVg794ecgpBgSgSSYwxTOedHIN04JKJb2B/doQkdBDRcyYaOs3i0uIwH3zBIZ9vZx0uWxMg=="
+  }
+}

@@ -114,9 +114,11 @@ public class GetSummaryData : IData
 
 public class LoginData : IData
 {
-    public string Token { get; set; }
-    public LoginData(string token)
+    public string AccessToken { get; set; }
+    public string RefreshToken { get; set; }
+    public LoginData(string accessToken, string refreshToken)
     {
-        Token = token;
+        AccessToken = accessToken;
+        RefreshToken = refreshToken;
     }
 }

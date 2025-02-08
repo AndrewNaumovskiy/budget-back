@@ -1,8 +1,6 @@
-﻿using Budget.API.Models;
-using Microsoft.AspNetCore.Http;
-using System.Net;
-using System.Text.Json;
-using Telegram.Bot.Types;
+﻿using System.Net;
+using Budget.API.Models;
+using System.Diagnostics;
 
 namespace Budget.API.Middleware;
 
@@ -23,6 +21,7 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
+            Debug.WriteLine(ex.ToString());
             await HandleExceptionAsync(context, ex);
         }
     }
