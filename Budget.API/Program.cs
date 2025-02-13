@@ -19,6 +19,7 @@ builder.Services.AddTransient<BalanceService>();
 builder.Services.AddTransient<IncomeService>();
 builder.Services.AddTransient<ExpenseService>();
 builder.Services.AddTransient<TransferService>();
+builder.Services.AddTransient<SavingService>();
 builder.Services.AddTransient<TransactionsService>();
 builder.Services.AddTransient<AuthService>();
 

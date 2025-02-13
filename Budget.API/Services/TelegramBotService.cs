@@ -29,6 +29,11 @@ public enum BotState
     EnterIncomeAccount,
     EnterIncomeDesc,
 
+    EnterSaving,
+    EnterSavingCategory,
+    EnterSavingAccount,
+    EnterSavingDesc,
+
     ViewExpenses
 }
 
@@ -38,6 +43,7 @@ public class TelegramBotService : IAsyncDisposable
 
     private readonly TelegramBotClient _bot;
 
+    private readonly SavingService _savingService;
     private readonly IncomeService _incomeService;
     private readonly BalanceService _balanceService;
     private readonly ExpenseService _expensesService;
@@ -54,11 +60,13 @@ public class TelegramBotService : IAsyncDisposable
     private string _subCategoryName;
 
     public TelegramBotService(
+        SavingService savingService,
         IncomeService incomeService,
         BalanceService balanceService,
         ExpenseService expensesService,
         DatabaseSelectorService databaseSelectorService)
     {
+        _savingService = savingService;
         _incomeService = incomeService;
         _balanceService = balanceService;
         _expensesService = expensesService;
@@ -150,6 +158,9 @@ public class TelegramBotService : IAsyncDisposable
                             break;
                         case TelegramKeyboards.EnterIncome:
                             await HandleEnterIncome(update.Message.Chat.Id, cancellationToken);
+                            break;
+                        case TelegramKeyboards.EnterSaving:
+                            await HandleEnterSaving(update.Message.Chat.Id, cancellationToken);
                             break;
                         #endregion
 
@@ -283,6 +294,21 @@ public class TelegramBotService : IAsyncDisposable
             case BotState.EnterIncomeDesc: // entered description
                 await HandleEnterIncomeDesc(update, cancellationToken);
                 break;
+            #endregion
+
+            #region AddSaving
+            case BotState.EnterSaving: // entered amount of money
+                await HandleEnterSavingAmount(update, cancellationToken);
+                break;
+            case BotState.EnterSavingCategory: // entered category
+                await HandleEnterSavingCategory(update, cancellationToken);
+                break;
+            case BotState.EnterSavingAccount: // entered account
+                await HandleEnterSavingAccount(update, cancellationToken);
+                break;
+            case BotState.EnterSavingDesc: // entered description
+                await HandleEnterSavingDesc(update, cancellationToken);
+                break;
                 #endregion
         }
     }
@@ -387,7 +413,7 @@ public class TelegramBotService : IAsyncDisposable
     }
     #endregion
     
-    #region AddExpenses
+    #region AddIncome
     public async Task HandleEnterIncome(long userId, CancellationToken cancellationToken)
     {
         _state = BotState.EnterIncome;
@@ -470,7 +496,90 @@ public class TelegramBotService : IAsyncDisposable
         await _bot.SendMessage(userId, message, parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.MainMenuKeyboard(), cancellationToken: cancellationToken);
     }
     #endregion
+    
+    #region AddSaving
+    public async Task HandleEnterSaving(long userId, CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterSaving;
+        const string message = "💵 Please enter the amount of your saving:";
+        await _bot.SendMessage(userId, message, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+    }
 
+    private async Task HandleEnterSavingAmount(Update update, CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterSavingCategory;
+
+        // TODO: fix can be overwritten by another user
+        if (!double.TryParse(update.Message.Text.Replace('.', ','), out _amount))
+        {
+            await OpenMainMenu(update.Message.Chat.Id, cancellationToken);
+            return;
+        }
+
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        var categories = await _savingService.GetSubCategories(username, dbOptions);
+
+        const string message = "📂 Now, choose a category for this saving:";
+        await _bot.SendMessage(update.Message.Chat.Id, message, replyMarkup: TelegramKeyboards.ExpensesCategoryKeyboard(categories), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleEnterSavingCategory(Update update, CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterSavingAccount;
+
+        _subCategoryName = update.Message.Text;
+
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        _subCategoryId = await _savingService.GetCategoryIdByName(username, dbOptions, _subCategoryName);
+
+        var accounts = await _balanceService.GetAccounts(username, dbOptions);
+        var accountsStr = accounts.Select(x => x.Name).ToList();
+
+        const string message = "🏦 Which account should this saving be deducted from?";
+        await _bot.SendMessage(update.Message.Chat.Id, "Enter account", replyMarkup: TelegramKeyboards.ExpensesAccountKeyboard(accountsStr), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleEnterSavingAccount(Update update, CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterSavingDesc;
+
+        _accountName = update.Message.Text;
+
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        _accountId = await _balanceService.GetAccountIdByName(username, dbOptions, _accountName);
+
+        const string message = "📝 Optional: Add a short description for this saving.";
+        await _bot.SendMessage(update.Message.Chat.Id, message, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleEnterSavingDesc(Update update, CancellationToken cancellationToken)
+    {
+        _description = update.Message.Text;
+
+        var req = new AddIncomeRequestModel()
+        {
+            Amount = _amount,
+            AccountId = _accountId,
+            CategoryId = _subCategoryId,
+            Date = DateTime.UtcNow,
+            Description = _description
+        };
+
+        var (_, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        await _savingService.AddSaving(req, dbOptions);
+
+        var currentBalance = _balanceService.GetCurrentBalance(_accountId, dbOptions);
+
+        await ConfirmSavingPage(update.Message.Chat.Id, currentBalance, cancellationToken);
+    }
+
+    private async Task ConfirmSavingPage(long userId, double balance, CancellationToken cancellationToken)
+    {
+        _state = BotState.MainMenu;
+        var message = $"💸 *Saving added* 💸\n\n💵 *Amount*: {_amount.ToString("C", CultureInfo.GetCultureInfo("uk-UA"))}\n\n📂 *Category*: {_subCategoryName}\n\n🏦 *Account*: {_accountName}\n\n📝 *Description*: {_description}\n\n📈 *Balance*: *{balance.ToString("C", CultureInfo.GetCultureInfo("uk-UA"))}*";
+        await _bot.SendMessage(userId, message, parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.MainMenuKeyboard(), cancellationToken: cancellationToken);
+    }
+    #endregion
 
     private async Task OpenViewExpensesMenu(long userId, CancellationToken cancellationToken)
     {
