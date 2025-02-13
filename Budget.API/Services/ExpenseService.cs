@@ -90,7 +90,7 @@ public class ExpenseService
 
     public async Task<List<CategoryDto>> GetCategories(string username, DbContextOptions<BudgetDbContext> dbOptions)
     {
-        if(_cache.TryGetValue($"CATEG_{username}", out List<CategoryDto> categories))
+        if(_cache.TryGetValue($"EXT_CATEG_{username}", out List<CategoryDto> categories))
         {
             return categories;
         }
@@ -116,7 +116,7 @@ public class ExpenseService
             }
         }
 
-        _cache.Set($"CATEG_{username}", result);
+        _cache.Set($"EXT_CATEG_{username}", result);
 
         return result;
     }
@@ -127,7 +127,7 @@ public class ExpenseService
     {
         List<SubCategoryDto> subCategories = null;
 
-        if(!_cache.TryGetValue($"CATEG_{username}", out List<CategoryDto> categories))
+        if(!_cache.TryGetValue($"EXT_CATEG_{username}", out List<CategoryDto> categories))
         {
             categories = await GetCategories(username, dbOptions);
         }
@@ -140,7 +140,7 @@ public class ExpenseService
     {
         List<SubCategoryDto> subCategories = null;
 
-        if (!_cache.TryGetValue($"CATEG_{username}", out List<CategoryDto> categories))
+        if (!_cache.TryGetValue($"EXT_CATEG_{username}", out List<CategoryDto> categories))
         {
             categories = await GetCategories(username, dbOptions);
         }

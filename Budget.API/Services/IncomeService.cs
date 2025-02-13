@@ -3,15 +3,18 @@ using Budget.API.Models.Dtos;
 using Budget.API.Models.DbModels;
 using Budget.API.Models.RequestModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Budget.API.Services;
 
 public class IncomeService
 {
+    private readonly IMemoryCache _cache;
     private readonly CurrencyRateService _currencyRateService;
 
-    public IncomeService(CurrencyRateService currencyRateService)
+    public IncomeService(IMemoryCache cache, CurrencyRateService currencyRateService)
     {
+        _cache = cache;
         _currencyRateService = currencyRateService;
     }
 
@@ -85,8 +88,13 @@ public class IncomeService
         }
     }
 
-    public async Task<List<CategoryDto>> GetCategoriesMeow(DbContextOptions<BudgetDbContext> dbOptions)
+    public async Task<List<CategoryDto>> GetCategories(string username, DbContextOptions<BudgetDbContext> dbOptions)
     {
+        if (_cache.TryGetValue($"INC_CATEG_{username}", out List<CategoryDto> categories))
+        {
+            return categories;
+        }
+
         List<CategoryDto> result = new();
 
         using (var db = new BudgetDbContext(dbOptions))
@@ -108,6 +116,40 @@ public class IncomeService
             }
         }
 
+        _cache.Set($"INC_CATEG_{username}", result);
+
         return result;
+    }
+
+    public async Task<List<string>> GetSubCategories(string username, DbContextOptions<BudgetDbContext> dbOptions)
+    {
+        List<SubCategoryDto> subCategories = null;
+
+        if (!_cache.TryGetValue($"INC_CATEG_{username}", out List<CategoryDto> categories))
+        {
+            categories = await GetCategories(username, dbOptions);
+        }
+
+        subCategories = categories.FirstOrDefault().SubCategories;
+        return subCategories.Select(x => x.Name).ToList();
+    }
+
+    public async Task<int> GetCategoryIdByName(string username, DbContextOptions<BudgetDbContext> dbOptions, string? subCategoryName)
+    {
+        List<SubCategoryDto> subCategories = null;
+
+        if (!_cache.TryGetValue($"INC_CATEG_{username}", out List<CategoryDto> categories))
+        {
+            categories = await GetCategories(username, dbOptions);
+        }
+
+        foreach (var item in categories)
+            foreach (var subCat in item.SubCategories)
+                if (subCat.Name == subCategoryName)
+                {
+                    return subCat.Id;
+                }
+
+        return -1;
     }
 }

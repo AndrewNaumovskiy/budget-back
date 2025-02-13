@@ -25,6 +25,9 @@ public enum BotState
     EnterExpensesDesc,
 
     EnterIncome,
+    EnterIncomeCategory,
+    EnterIncomeAccount,
+    EnterIncomeDesc,
 
     ViewExpenses
 }
@@ -35,8 +38,9 @@ public class TelegramBotService : IAsyncDisposable
 
     private readonly TelegramBotClient _bot;
 
-    private readonly ExpenseService _expensesService;
+    private readonly IncomeService _incomeService;
     private readonly BalanceService _balanceService;
+    private readonly ExpenseService _expensesService;
     private readonly DatabaseSelectorService _databaseSelectorService;
 
     private BotState _state = BotState.MainMenu;
@@ -50,12 +54,14 @@ public class TelegramBotService : IAsyncDisposable
     private string _subCategoryName;
 
     public TelegramBotService(
-        ExpenseService expensesService,
+        IncomeService incomeService,
         BalanceService balanceService,
+        ExpenseService expensesService,
         DatabaseSelectorService databaseSelectorService)
     {
-        _expensesService = expensesService;
+        _incomeService = incomeService;
         _balanceService = balanceService;
+        _expensesService = expensesService;
         _databaseSelectorService = databaseSelectorService;
 
         _bot = new TelegramBotClient(BotToken);
@@ -136,14 +142,19 @@ public class TelegramBotService : IAsyncDisposable
                         case TelegramKeyboards.NetWorth:
                             await _bot.SendMessage(update.Message.Chat.Id, "Net worth", cancellationToken: cancellationToken);
                             break;
+                        #endregion
 
+                        #region AddEntry
                         case TelegramKeyboards.EnterExpenses:
                             await HandleEnterExpenses(update.Message.Chat.Id, cancellationToken);
+                            break;
+                        case TelegramKeyboards.EnterIncome:
+                            await HandleEnterIncome(update.Message.Chat.Id, cancellationToken);
                             break;
                         #endregion
 
                         #region ViewEntriesMenu
-                            case TelegramKeyboards.ViewExpenses:
+                        case TelegramKeyboards.ViewExpenses:
                             await OpenViewExpensesMenu(update.Message.Chat.Id, cancellationToken);
                             break;
                         #endregion
@@ -257,6 +268,21 @@ public class TelegramBotService : IAsyncDisposable
             case BotState.EnterExpensesDesc: // entered description
                 await HandleEnterExpensesDesc(update, cancellationToken);
                 break;
+            #endregion
+
+            #region AddIncome
+            case BotState.EnterIncome: // entered amount of money
+                await HandleEnterIncomeAmount(update, cancellationToken);
+                break;
+            case BotState.EnterIncomeCategory: // entered category
+                await HandleEnterIncomeCategory(update, cancellationToken);
+                break;
+            case BotState.EnterIncomeAccount: // entered account
+                await HandleEnterIncomeAccount(update, cancellationToken);
+                break;
+            case BotState.EnterIncomeDesc: // entered description
+                await HandleEnterIncomeDesc(update, cancellationToken);
+                break;
                 #endregion
         }
     }
@@ -360,6 +386,91 @@ public class TelegramBotService : IAsyncDisposable
         await _bot.SendMessage(userId, message, parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.MainMenuKeyboard(), cancellationToken: cancellationToken);
     }
     #endregion
+    
+    #region AddExpenses
+    public async Task HandleEnterIncome(long userId, CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterIncome;
+        const string message = "💵 Please enter the amount of your income:";
+        await _bot.SendMessage(userId, message, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleEnterIncomeAmount(Update update, CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterIncomeCategory;
+
+        // TODO: fix can be overwritten by another user
+        if (!double.TryParse(update.Message.Text.Replace('.', ','), out _amount))
+        {
+            await OpenMainMenu(update.Message.Chat.Id, cancellationToken);
+            return;
+        }
+
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        var categories = await _incomeService.GetSubCategories(username, dbOptions);
+
+        const string message = "📂 Now, choose a category for this income:";
+        await _bot.SendMessage(update.Message.Chat.Id, message, replyMarkup: TelegramKeyboards.ExpensesCategoryKeyboard(categories), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleEnterIncomeCategory(Update update, CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterIncomeAccount;
+
+        _subCategoryName = update.Message.Text;
+
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        _subCategoryId = await _incomeService.GetCategoryIdByName(username, dbOptions, _subCategoryName);
+
+        var accounts = await _balanceService.GetAccounts(username, dbOptions);
+        var accountsStr = accounts.Select(x => x.Name).ToList();
+
+        const string message = "🏦 Which account should this income be deducted from?";
+        await _bot.SendMessage(update.Message.Chat.Id, "Enter account", replyMarkup: TelegramKeyboards.ExpensesAccountKeyboard(accountsStr), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleEnterIncomeAccount(Update update, CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterIncomeDesc;
+
+        _accountName = update.Message.Text;
+
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        _accountId = await _balanceService.GetAccountIdByName(username, dbOptions, _accountName);
+
+        const string message = "📝 Optional: Add a short description for this income.";
+        await _bot.SendMessage(update.Message.Chat.Id, message, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleEnterIncomeDesc(Update update, CancellationToken cancellationToken)
+    {
+        _description = update.Message.Text;
+
+        var req = new AddIncomeRequestModel()
+        {
+            Amount = _amount,
+            AccountId = _accountId,
+            CategoryId = _subCategoryId,
+            Date = DateTime.UtcNow,
+            Description = _description
+        };
+
+        var (_, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        await _incomeService.AddIncome(req, dbOptions);
+
+        var currentBalance = _balanceService.GetCurrentBalance(_accountId, dbOptions);
+
+        await ConfirmIncomePage(update.Message.Chat.Id, currentBalance, cancellationToken);
+    }
+
+    private async Task ConfirmIncomePage(long userId, double balance, CancellationToken cancellationToken)
+    {
+        _state = BotState.MainMenu;
+        var message = $"💸 *Income added* 💸\n\n💵 *Amount*: {_amount.ToString("C", CultureInfo.GetCultureInfo("uk-UA"))}\n\n📂 *Category*: {_subCategoryName}\n\n🏦 *Account*: {_accountName}\n\n📝 *Description*: {_description}\n\n📈 *Balance*: *{balance.ToString("C", CultureInfo.GetCultureInfo("uk-UA"))}*";
+        await _bot.SendMessage(userId, message, parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.MainMenuKeyboard(), cancellationToken: cancellationToken);
+    }
+    #endregion
+
 
     private async Task OpenViewExpensesMenu(long userId, CancellationToken cancellationToken)
     {
@@ -427,6 +538,8 @@ public static class TelegramKeyboards
     #region AddEntry Menu
     public const string EnterExpenses = "➖ Add Expense";
     public const string EnterIncome = "➕ Add Income";
+    public const string EnterTransfer = "🔄 Add Transfer";
+    public const string EnterSaving = "💰 Add Saving";
     // Back
     #endregion
 
@@ -476,6 +589,10 @@ public static class TelegramKeyboards
                 [
                     new KeyboardButton(EnterExpenses),
                     new KeyboardButton(EnterIncome),
+                ],
+                [
+                    new KeyboardButton(EnterTransfer),
+                    new KeyboardButton(EnterSaving),
                 ],
                 [
                     new KeyboardButton(Back),

@@ -55,7 +55,7 @@ public class IncomeController : ControllerBase
     {
         var dbOptions = _databaseSelectorService.GetUserDatabase(User.Identity.Name);
 
-        var categories = await _incomeService.GetCategoriesMeow(dbOptions);
+        var categories = await _incomeService.GetCategories(User.Identity.Name, dbOptions);
 
         return Ok(new ResponseModel<GetCategoriesData, IError>()
         {
