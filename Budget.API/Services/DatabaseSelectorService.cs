@@ -59,7 +59,10 @@ public class DatabaseSelectorService
         if (_server == null)
             _server = ServerVersion.AutoDetect(connString);
 
-        builder.UseMySql(connString, _server);
+        builder.UseMySql(connString, _server, opt =>
+        {
+            opt.EnableRetryOnFailure(3);
+        });
 
         return builder.Options;
     }

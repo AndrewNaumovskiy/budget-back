@@ -34,6 +34,11 @@ public enum BotState
     EnterSavingAccount,
     EnterSavingDesc,
 
+    EnterTransfer,
+    EnterTransferAccountFrom,
+    EnterTransferAccountTo,
+    EnterTransferDesc,
+
     ViewExpenses
 }
 
@@ -47,6 +52,7 @@ public class TelegramBotService : IAsyncDisposable
     private readonly IncomeService _incomeService;
     private readonly BalanceService _balanceService;
     private readonly ExpenseService _expensesService;
+    private readonly TransferService _transferService;
     private readonly DatabaseSelectorService _databaseSelectorService;
 
     private BotState _state = BotState.MainMenu;
@@ -56,6 +62,11 @@ public class TelegramBotService : IAsyncDisposable
     private int _subCategoryId;
     private string _description;
 
+    private int _accountFromId;
+    private int _accountToId;
+    private string _accountFromName;
+    private string _accountToName;
+
     private string _accountName;
     private string _subCategoryName;
 
@@ -64,12 +75,14 @@ public class TelegramBotService : IAsyncDisposable
         IncomeService incomeService,
         BalanceService balanceService,
         ExpenseService expensesService,
+        TransferService transferService,
         DatabaseSelectorService databaseSelectorService)
     {
         _savingService = savingService;
         _incomeService = incomeService;
         _balanceService = balanceService;
         _expensesService = expensesService;
+        _transferService = transferService;
         _databaseSelectorService = databaseSelectorService;
 
         _bot = new TelegramBotClient(BotToken);
@@ -158,6 +171,9 @@ public class TelegramBotService : IAsyncDisposable
                             break;
                         case TelegramKeyboards.EnterIncome:
                             await HandleEnterIncome(update.Message.Chat.Id, cancellationToken);
+                            break;
+                        case TelegramKeyboards.EnterTransfer:
+                            await HandleEnterTransfer(update.Message.Chat.Id, cancellationToken);
                             break;
                         case TelegramKeyboards.EnterSaving:
                             await HandleEnterSaving(update.Message.Chat.Id, cancellationToken);
@@ -293,6 +309,21 @@ public class TelegramBotService : IAsyncDisposable
                 break;
             case BotState.EnterIncomeDesc: // entered description
                 await HandleEnterIncomeDesc(update, cancellationToken);
+                break;
+            #endregion
+
+            #region AddTransfer
+            case BotState.EnterTransfer: // entered amount of money
+                await HandleEnterTransferAmount(update, cancellationToken);
+                break;
+            case BotState.EnterTransferAccountFrom: // entered category
+                await HandleEnterTransferAccountFrom(update, cancellationToken);
+                break;
+            case BotState.EnterTransferAccountTo: // entered account
+                await HandleEnterTransferAccountTo(update, cancellationToken);
+                break;
+            case BotState.EnterTransferDesc: // entered description
+                await HandleEnterTransferDesc(update, cancellationToken);
                 break;
             #endregion
 
@@ -496,7 +527,99 @@ public class TelegramBotService : IAsyncDisposable
         await _bot.SendMessage(userId, message, parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.MainMenuKeyboard(), cancellationToken: cancellationToken);
     }
     #endregion
+
+    #region AddTransfer
     
+    public async Task HandleEnterTransfer(long userId, CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterTransfer;
+        const string message = "💵 Please enter the amount for transfer:";
+        await _bot.SendMessage(userId, message, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleEnterTransferAmount(Update update, CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterTransferAccountFrom;
+
+        // TODO: fix can be overwritten by another user
+        if (!double.TryParse(update.Message.Text.Replace('.', ','), out _amount))
+        {
+            await OpenMainMenu(update.Message.Chat.Id, cancellationToken);
+            return;
+        }
+
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        
+        var accounts = await _balanceService.GetAccounts(username, dbOptions);
+        var accountsStr = accounts.Select(x => x.Name).ToList();
+
+        const string message = "📂 Which account should this transfer be deducted from:";
+        await _bot.SendMessage(update.Message.Chat.Id, message, replyMarkup: TelegramKeyboards.ExpensesAccountKeyboard(accountsStr), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleEnterTransferAccountFrom(Update update, CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterTransferAccountTo;
+
+        _accountFromName = update.Message.Text;
+
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        _accountFromId = await _balanceService.GetAccountIdByName(username, dbOptions, _accountFromName);
+
+        var accounts = await _balanceService.GetAccounts(username, dbOptions);
+        var accountsStr = accounts.Select(x => x.Name).ToList();
+
+        const string message = "🏦 Which account should this transfer be deducted to?";
+        await _bot.SendMessage(update.Message.Chat.Id, "Enter account", replyMarkup: TelegramKeyboards.ExpensesAccountKeyboard(accountsStr), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleEnterTransferAccountTo(Update update, CancellationToken cancellationToken)
+    {
+        _state = BotState.EnterTransferDesc;
+
+        _accountToName = update.Message.Text;
+
+        var (username, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        _accountToId = await _balanceService.GetAccountIdByName(username, dbOptions, _accountToName);
+
+        const string message = "📝 Optional: Add a short description for this transfer.";
+        await _bot.SendMessage(update.Message.Chat.Id, message, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleEnterTransferDesc(Update update, CancellationToken cancellationToken)
+    {
+        _description = update.Message.Text;
+
+        var req = new AddTransferRequestModel()
+        {
+            Amount = _amount,
+            FromAccountId = _accountFromId,
+            ToAccountId = _accountToId,
+            Date = DateTime.UtcNow,
+            Description = _description
+        };
+
+        var (_, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+        await _transferService.AddTransfer(req, dbOptions);
+
+        var currentBalanceFrom = _balanceService.GetCurrentBalance(_accountFromId, dbOptions);
+        var currentBalanceTo = _balanceService.GetCurrentBalance(_accountToId, dbOptions);
+
+        await ConfirmTransferPage(update.Message.Chat.Id, currentBalanceFrom, currentBalanceTo, cancellationToken);
+    }
+
+    private async Task ConfirmTransferPage(long userId, double balanceFrom, double balanceTo, CancellationToken cancellationToken)
+    {
+        _state = BotState.MainMenu;
+        var message = $"💸 *Transfer added* 💸\n\n" +
+                      $"💵 *Amount*: {_amount.ToString("C", CultureInfo.GetCultureInfo("uk-UA"))}\n\n" +
+                      $"🏦 *Account from*: {_accountFromName} *{balanceFrom.ToString("C", CultureInfo.GetCultureInfo("uk-UA"))}*\n\n" +
+                      $"🏦 *Account to*: {_accountToName} *{balanceTo.ToString("C", CultureInfo.GetCultureInfo("uk-UA"))}*\n\n" +
+                      $"📝 *Description*: {_description}";
+        await _bot.SendMessage(userId, message, parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.MainMenuKeyboard(), cancellationToken: cancellationToken);
+    }
+    #endregion
+
     #region AddSaving
     public async Task HandleEnterSaving(long userId, CancellationToken cancellationToken)
     {
