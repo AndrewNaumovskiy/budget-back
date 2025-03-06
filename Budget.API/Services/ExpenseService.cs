@@ -155,10 +155,9 @@ public class ExpenseService
         return -1;
     }
 
-    // TODO: fix this
-    public async Task<List<TransactionDto>> GetExpenses(int pageSize, int page = 0)
+    public async Task<List<TransactionDto>> GetExpenses(DbContextOptions<BudgetDbContext> dbOptions, int pageSize, int page = 0)
     {
-        using (var db = new BudgetDbContext(null))
+        using (var db = new BudgetDbContext(dbOptions))
         {
             return await db.Transactions.AsNoTracking()
                                         .Where(x => x.Type == TransactionType.Expense)

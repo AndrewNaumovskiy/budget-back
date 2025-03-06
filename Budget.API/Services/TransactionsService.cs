@@ -103,8 +103,6 @@ public class TransactionsService
 
     public async Task<(double, double, double, double)> GetSummary(string yearStr, string monthStr, DbContextOptions<BudgetDbContext> dbOptions)
     {
-        double income = 0, expenses = 0, savings = 0, unspecified = 0;
-
         var now = DateTime.UtcNow;
 
         int year = now.Year;
@@ -118,6 +116,13 @@ public class TransactionsService
         {
             month = monthParsed;
         }
+
+        return await GetSummary(year, month, dbOptions);
+    }
+
+    public async Task<(double, double, double, double)> GetSummary(int year, int month, DbContextOptions<BudgetDbContext> dbOptions)
+    {
+        double income = 0, expenses = 0, savings = 0, unspecified = 0;
 
         DateTime from = new DateTime(year, month, 1, 0, 0, 1);
         DateTime to = from.AddMonths(1).AddSeconds(-1);

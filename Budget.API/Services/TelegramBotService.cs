@@ -39,7 +39,10 @@ public enum BotState
     EnterTransferAccountTo,
     EnterTransferDesc,
 
-    ViewExpenses
+    ViewExpenses,
+
+    OpenStatistics,
+    Summary
 }
 
 public class TelegramBotService : IAsyncDisposable
@@ -53,6 +56,7 @@ public class TelegramBotService : IAsyncDisposable
     private readonly BalanceService _balanceService;
     private readonly ExpenseService _expensesService;
     private readonly TransferService _transferService;
+    private readonly TransactionsService _transactionsService;
     private readonly DatabaseSelectorService _databaseSelectorService;
 
     private BotState _state = BotState.MainMenu;
@@ -70,12 +74,16 @@ public class TelegramBotService : IAsyncDisposable
     private string _accountName;
     private string _subCategoryName;
 
+    private int _summaryYear;
+    private int _summaryMonth;
+
     public TelegramBotService(
         SavingService savingService,
         IncomeService incomeService,
         BalanceService balanceService,
         ExpenseService expensesService,
         TransferService transferService,
+        TransactionsService transactionsService,
         DatabaseSelectorService databaseSelectorService)
     {
         _savingService = savingService;
@@ -83,6 +91,7 @@ public class TelegramBotService : IAsyncDisposable
         _balanceService = balanceService;
         _expensesService = expensesService;
         _transferService = transferService;
+        _transactionsService = transactionsService;
         _databaseSelectorService = databaseSelectorService;
 
         _bot = new TelegramBotClient(BotToken);
@@ -149,8 +158,12 @@ public class TelegramBotService : IAsyncDisposable
                             await OpenAddEntryMenu(update.Message.Chat.Id, cancellationToken);
                             break;
 
-                        case TelegramKeyboards.ViewEntrie:
+                        case TelegramKeyboards.ViewEntries:
                             await OpenViewEntriesMenu(update.Message.Chat.Id, cancellationToken);
+                            break;
+
+                        case TelegramKeyboards.Statistics:
+                            await OpenStatisticsMenu(update.Message.Chat.Id, cancellationToken);
                             break;
                         #endregion
 
@@ -183,6 +196,12 @@ public class TelegramBotService : IAsyncDisposable
                         #region ViewEntriesMenu
                         case TelegramKeyboards.ViewExpenses:
                             await OpenViewExpensesMenu(update.Message.Chat.Id, cancellationToken);
+                            break;
+                        #endregion
+
+                        #region Statistics
+                            case TelegramKeyboards.Summary:
+                            await OpenSummaryMenu(update.Message.Chat.Id, cancellationToken);
                             break;
                         #endregion
 
@@ -269,6 +288,10 @@ public class TelegramBotService : IAsyncDisposable
             case BotState.ViewExpenses:
                 await OpenMainMenu(userId, cancellationToken);
                 break;
+
+            case BotState.Summary:
+                await OpenStatisticsMenu(userId, cancellationToken);
+                break;
         }
     }
 
@@ -341,6 +364,10 @@ public class TelegramBotService : IAsyncDisposable
                 await HandleEnterSavingDesc(update, cancellationToken);
                 break;
                 #endregion
+
+            case BotState.Summary:
+                await HandleSummaryMonth(update, cancellationToken);
+                break;
         }
     }
     #region AddExpenses
@@ -356,7 +383,7 @@ public class TelegramBotService : IAsyncDisposable
         _state = BotState.EnterExpensesCategory;
 
         // TODO: fix can be overwritten by another user
-        if (!double.TryParse(update.Message.Text.Replace('.',','), out _amount))
+        if (!double.TryParse(update.Message.Text.Replace(",",""), CultureInfo.InvariantCulture, out _amount))
         {
             await OpenMainMenu(update.Message.Chat.Id, cancellationToken);
             return;
@@ -457,7 +484,7 @@ public class TelegramBotService : IAsyncDisposable
         _state = BotState.EnterIncomeCategory;
 
         // TODO: fix can be overwritten by another user
-        if (!double.TryParse(update.Message.Text.Replace('.', ','), out _amount))
+        if (!double.TryParse(update.Message.Text.Replace(",", ""), CultureInfo.InvariantCulture, out _amount))
         {
             await OpenMainMenu(update.Message.Chat.Id, cancellationToken);
             return;
@@ -542,7 +569,7 @@ public class TelegramBotService : IAsyncDisposable
         _state = BotState.EnterTransferAccountFrom;
 
         // TODO: fix can be overwritten by another user
-        if (!double.TryParse(update.Message.Text.Replace('.', ','), out _amount))
+        if (!double.TryParse(update.Message.Text.Replace(",", ""), CultureInfo.InvariantCulture, out _amount))
         {
             await OpenMainMenu(update.Message.Chat.Id, cancellationToken);
             return;
@@ -633,7 +660,7 @@ public class TelegramBotService : IAsyncDisposable
         _state = BotState.EnterSavingCategory;
 
         // TODO: fix can be overwritten by another user
-        if (!double.TryParse(update.Message.Text.Replace('.', ','), out _amount))
+        if (!double.TryParse(update.Message.Text.Replace(",", ""), CultureInfo.InvariantCulture, out _amount))
         {
             await OpenMainMenu(update.Message.Chat.Id, cancellationToken);
             return;
@@ -706,14 +733,15 @@ public class TelegramBotService : IAsyncDisposable
 
     private async Task OpenViewExpensesMenu(long userId, CancellationToken cancellationToken)
     {
-        CultureInfo culture = new CultureInfo("uk-UA");
-
         _state = BotState.ViewExpenses;
-        var expenses = await _expensesService.GetExpenses(5);
+
+        var (_, dbOptions) = _databaseSelectorService.GetUserDatabase(userId);
+        var expenses = await _expensesService.GetExpenses(dbOptions, 5);
         
         var message = "📝 *Recent Expenses* 📝\n\n";
         await _bot.SendMessage(userId, message, parseMode: ParseMode.Markdown, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
         
+        CultureInfo culture = new CultureInfo("uk-UA");
         foreach (var expense in expenses)
         {
             string temp = $"💸 *Amount*: `{expense.Amount.ToString("C", culture)}`\n\n📂 *Category*: `{expense.CategoryName}`\n\n🏦 *Account*: `{expense.AccountName}`\n\n📝 *Description*: `{expense.Description}`\n\n💰 *Balance*: `{expense.Balance.ToString("C", culture)}`";
@@ -722,6 +750,58 @@ public class TelegramBotService : IAsyncDisposable
 
         await _bot.SendMessage(userId, "LOAD MORE?!", parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.ViewExpensesMenuKeyboard(), cancellationToken: cancellationToken);
     }
+
+    private async Task OpenStatisticsMenu(long userId, CancellationToken cancellationToken)
+    {
+        _state = BotState.OpenStatistics;
+        await _bot.SendMessage(userId, "Statistics", replyMarkup: TelegramKeyboards.StatisticsMenuKeyboard(), cancellationToken: cancellationToken);
+    }
+
+    #region Summary
+    private async Task OpenSummaryMenu(long userId, CancellationToken cancellationToken)
+    {
+        _state = BotState.Summary;
+
+        var now = DateTime.UtcNow;
+
+        await DisplaySummary(now, userId, cancellationToken);
+    }
+    
+    private async Task HandleSummaryMonth(Update update, CancellationToken cancellationToken)
+    {
+        var text = update.Message.Text;
+        var array = Array.ConvertAll(text.Split('/'), int.Parse);
+
+        DateTime date = new DateTime(array[1], array[0], 1);
+
+        await DisplaySummary(date, update.Message.Chat.Id, cancellationToken);
+    }
+
+    private async Task DisplaySummary(DateTime date, long userId, CancellationToken cancellationToken)
+    {
+        _summaryYear = date.Year;
+        _summaryMonth = date.Month;
+
+        List<string> prevMonth = new();
+        for (int i = 0; i < 3; i++)
+        {
+            date = date.AddMonths(-1);
+            prevMonth.Add($"{date.Month}/{date.Year}");
+        }
+
+        var (_, dbOptions) = _databaseSelectorService.GetUserDatabase(userId);
+        var (income, expenses, savings, unspecified) = await _transactionsService.GetSummary(_summaryYear, _summaryMonth, dbOptions);
+
+        CultureInfo culture = new CultureInfo("uk-UA");
+
+        await _bot.SendMessage(userId, $"📊 *Summary for {_summaryMonth}/{_summaryYear}* 📊\n\n" +
+                                       $"💵 *Income*: `{income.ToString("C", culture)}`\n\n" +
+                                       $"💸 *Expenses*: `{expenses.ToString("C", culture)}`\n\n" +
+                                       $"💰 *Savings*: `{savings.ToString("C", culture)}`\n\n" +
+                                       $"💸 *Unspecified*: `{unspecified.ToString("C", culture)}`",
+            parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.MonthSummaryKeyboard(prevMonth), cancellationToken: cancellationToken);
+    }
+    #endregion
 
     public async Task TestInline(Update update, CancellationToken cancellationToken)
     {
@@ -757,14 +837,17 @@ public static class TelegramKeyboards
     #region MainMenu
     public const string Balance = "💰 Balance";
     public const string AddEntry = "➕ Add Entry";
-    public const string ViewEntrie = "📋 View Entries";
+    public const string ViewEntries = "📋 View Entries";
     public const string Shortcuts = "⚙️ Shortcuts";
+    public const string Statistics = "📊 Statistics";
     #endregion
+
+    public const string Back = "🔙 Back";
 
     #region Balance Menu
     public const string ShowInUsd = "🔄 Show in USD";
     public const string NetWorth = "Net worth";
-    public const string Back = "🔙 Back";
+    // Back
     #endregion
 
     #region AddEntry Menu
@@ -781,6 +864,12 @@ public static class TelegramKeyboards
     // Back
     #endregion
 
+    #region Statistics
+    public const string Summary = "📊 Summary";
+    public const string IncomeExpenseChart = "💹 Chart";
+    // Back
+    #endregion
+
     public static ReplyKeyboardMarkup MainMenuKeyboard()
     {
         return new ReplyKeyboardMarkup(
@@ -790,9 +879,10 @@ public static class TelegramKeyboards
                 ],
                 [
                     new KeyboardButton(AddEntry),
-                    new KeyboardButton(ViewEntrie),
+                    new KeyboardButton(ViewEntries),
                 ],
                 [
+                    new KeyboardButton(Statistics),
                     new KeyboardButton(Shortcuts),
                 ],
             ]
@@ -842,6 +932,9 @@ public static class TelegramKeyboards
                     new KeyboardButton(ViewIncome),
                 ],
                 [
+                    new KeyboardButton(Summary),
+                ],
+                [
                     new KeyboardButton(Back),
                 ],
             ]
@@ -860,6 +953,37 @@ public static class TelegramKeyboards
                 ],
             ]
         );
+    }
+
+    public static ReplyKeyboardMarkup StatisticsMenuKeyboard()
+    {
+        return new ReplyKeyboardMarkup(
+            [
+                [
+                    new KeyboardButton(Summary),
+                    new KeyboardButton(IncomeExpenseChart),
+                ],
+                [
+                    new KeyboardButton(Back),
+                ],
+            ]
+        );
+    }
+
+    public static ReplyKeyboardMarkup MonthSummaryKeyboard(List<string> prevMonth)
+    {
+        // 03/2025
+        var result = new ReplyKeyboardMarkup();
+
+        result.AddButtons(
+            prevMonth.Select(x => new KeyboardButton(x)).ToArray()
+        );
+
+        result.AddNewRow(
+            new KeyboardButton(Back)
+        );
+
+        return result;
     }
 
     #region Expenses
