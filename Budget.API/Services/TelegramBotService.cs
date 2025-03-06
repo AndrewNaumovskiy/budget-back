@@ -42,7 +42,8 @@ public enum BotState
     ViewExpenses,
 
     OpenStatistics,
-    Summary
+    Summary,
+    ExpenseChart,
 }
 
 public class TelegramBotService : IAsyncDisposable
@@ -200,8 +201,11 @@ public class TelegramBotService : IAsyncDisposable
                         #endregion
 
                         #region Statistics
-                            case TelegramKeyboards.Summary:
+                        case TelegramKeyboards.Summary:
                             await OpenSummaryMenu(update.Message.Chat.Id, cancellationToken);
+                            break;
+                        case TelegramKeyboards.ExpenseChart:
+                            await OpenIncomeExpenseChartMenu(update.Message.Chat.Id, cancellationToken);
                             break;
                         #endregion
 
@@ -290,6 +294,7 @@ public class TelegramBotService : IAsyncDisposable
                 break;
 
             case BotState.Summary:
+            case BotState.ExpenseChart:
                 await OpenStatisticsMenu(userId, cancellationToken);
                 break;
         }
@@ -367,6 +372,9 @@ public class TelegramBotService : IAsyncDisposable
 
             case BotState.Summary:
                 await HandleSummaryMonth(update, cancellationToken);
+                break;
+            case BotState.ExpenseChart:
+                await HandleExpenseChartMonth(update, cancellationToken);
                 break;
         }
     }
@@ -803,6 +811,50 @@ public class TelegramBotService : IAsyncDisposable
     }
     #endregion
 
+    #region IncomeExpenseChart
+
+    private async Task OpenIncomeExpenseChartMenu(long userId, CancellationToken cancellationToken)
+    {
+        _state = BotState.ExpenseChart;
+
+        var now = DateTime.UtcNow;
+
+        await DisplayExpenseChart(now, userId, cancellationToken);
+    }
+
+    private async Task HandleExpenseChartMonth(Update update, CancellationToken cancellationToken)
+    {
+        var text = update.Message.Text;
+        var array = Array.ConvertAll(text.Split('/'), int.Parse);
+
+        DateTime date = new DateTime(array[1], array[0], 1);
+
+        await DisplayExpenseChart(date, update.Message.Chat.Id, cancellationToken);
+    }
+
+    private async Task DisplayExpenseChart(DateTime date, long userId, CancellationToken cancellationToken)
+    {
+        _summaryYear = date.Year;
+        _summaryMonth = date.Month;
+
+        List<string> prevMonth = new();
+        for (int i = 0; i < 3; i++)
+        {
+            date = date.AddMonths(-1);
+            prevMonth.Add($"{date.Month}/{date.Year}");
+        }
+
+        var (_, dbOptions) = _databaseSelectorService.GetUserDatabase(userId);
+        var chart = await _transactionsService.GetExpenseChart(_summaryYear, _summaryMonth, dbOptions);
+
+        string msg = string.Join("\n", chart.Select(x => x.ToString()));
+
+        await _bot.SendMessage(userId, $"📊 *Statistics for {_summaryMonth}/{_summaryYear}* 📊\n\n{msg}",
+            parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.MonthSummaryKeyboard(prevMonth), cancellationToken: cancellationToken);
+    }
+
+    #endregion
+
     public async Task TestInline(Update update, CancellationToken cancellationToken)
     {
         InlineKeyboardMarkup inlineKeyboard = new InlineKeyboardMarkup(
@@ -866,7 +918,7 @@ public static class TelegramKeyboards
 
     #region Statistics
     public const string Summary = "📊 Summary";
-    public const string IncomeExpenseChart = "💹 Chart";
+    public const string ExpenseChart = "💹 Expense Chart";
     // Back
     #endregion
 
@@ -961,7 +1013,7 @@ public static class TelegramKeyboards
             [
                 [
                     new KeyboardButton(Summary),
-                    new KeyboardButton(IncomeExpenseChart),
+                    new KeyboardButton(ExpenseChart),
                 ],
                 [
                     new KeyboardButton(Back),

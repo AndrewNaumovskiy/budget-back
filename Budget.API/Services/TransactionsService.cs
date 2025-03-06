@@ -141,4 +141,29 @@ public class TransactionsService
 
         return (Math.Round(income, 2), Math.Round(expenses, 2), Math.Round(savings, 2), Math.Round(unspecified, 2));
     }
+
+    public async Task<List<ExpenseChartDto>> GetExpenseChart(int year, int month, DbContextOptions<BudgetDbContext> dbOptions)
+    {
+        List<ExpenseChartDto> result = null!;
+
+        DateTime from = new DateTime(year, month, 1, 0, 0, 1);
+        DateTime to = from.AddMonths(1).AddSeconds(-1);
+
+        using (var db = new BudgetDbContext(dbOptions))
+        {
+            result = await db.Transactions.AsNoTracking()
+                                                    .Where(x => x.Type == TransactionType.Expense)
+                                                    .Where(x => x.Date >= from && x.Date <= to)
+                                                    .GroupBy(x => x.Category.CategoryId)
+                                                    .Select(x => new ExpenseChartDto(x.First().Category.Name, Math.Round(x.Sum(x => x.Amount),2)))
+                                                    .ToListAsync();
+        }
+
+        var total = result.Sum(x => x.Amount);
+
+        foreach (var item in result)
+            item.CalculatePercentage(total);
+
+        return result.OrderByDescending(x => x.Amount).ToList();
+    }
 }
