@@ -98,7 +98,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 _ = app.Services.GetService<TelegramBotService>();
-//_ = app.Services.GetService<ExpenseService>();
 _ = app.Services.GetService<DatabaseSelectorService>();
 
 app.Run();

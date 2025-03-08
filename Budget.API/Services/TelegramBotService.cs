@@ -290,6 +290,7 @@ public class TelegramBotService : IAsyncDisposable
             case BotState.AddEntry:
             case BotState.ViewEntries:
             case BotState.ViewExpenses:
+            case BotState.OpenStatistics:
                 await OpenMainMenu(userId, cancellationToken);
                 break;
 
@@ -845,11 +846,11 @@ public class TelegramBotService : IAsyncDisposable
         }
 
         var (_, dbOptions) = _databaseSelectorService.GetUserDatabase(userId);
-        var chart = await _transactionsService.GetExpenseChart(_summaryYear, _summaryMonth, dbOptions);
+        var (chart, total) = await _transactionsService.GetExpenseChart(_summaryYear, _summaryMonth, dbOptions);
 
         string msg = string.Join("\n", chart.Select(x => x.ToString()));
 
-        await _bot.SendMessage(userId, $"📊 *Statistics for {_summaryMonth}/{_summaryYear}* 📊\n\n{msg}",
+        await _bot.SendMessage(userId, $"📊 *Statistics for {_summaryMonth}/{_summaryYear}* 📊\n💲 *Money spend {total.ToString("C", CultureInfo.GetCultureInfo("uk-UA"))}* 💲\n\n{msg}",
             parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.MonthSummaryKeyboard(prevMonth), cancellationToken: cancellationToken);
     }
 
@@ -982,9 +983,6 @@ public static class TelegramKeyboards
                 [
                     new KeyboardButton(ViewExpenses),
                     new KeyboardButton(ViewIncome),
-                ],
-                [
-                    new KeyboardButton(Summary),
                 ],
                 [
                     new KeyboardButton(Back),
