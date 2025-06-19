@@ -38,6 +38,14 @@ builder.Services.AddPooledDbContextFactory<AdminDbContext>(options =>
     options.EnableServiceProviderCaching(false);
 }, 2);
 
+builder.Services.AddPooledDbContextFactory<BondsDbContext>(options =>
+{
+    // server=localhost;database=stars;uid=root;password=admin
+    var serverVersion = ServerVersion.AutoDetect(connString);
+    options.UseMySql(connString, serverVersion);
+    options.EnableServiceProviderCaching(false);
+}, 2);
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(builder => builder
@@ -66,7 +74,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     {
                         OnAuthenticationFailed = context =>
                         {
-                            Console.WriteLine("Authentication failed: " + context.Exception.Message);
+                            Debug.WriteLine("Authentication failed: " + context.Exception.Message);
                             return Task.CompletedTask;
                         }
                     };

@@ -44,6 +44,9 @@ public enum BotState
     OpenStatistics,
     Summary,
     ExpenseChart,
+
+    BondsMenu,
+    UpdateBonds,
 }
 
 public class TelegramBotService : IAsyncDisposable
@@ -52,6 +55,7 @@ public class TelegramBotService : IAsyncDisposable
 
     private readonly TelegramBotClient _bot;
 
+    private readonly BondsService _bondsService;
     private readonly SavingService _savingService;
     private readonly IncomeService _incomeService;
     private readonly BalanceService _balanceService;
@@ -79,6 +83,7 @@ public class TelegramBotService : IAsyncDisposable
     private int _summaryMonth;
 
     public TelegramBotService(
+        BondsService bondsService,
         SavingService savingService,
         IncomeService incomeService,
         BalanceService balanceService,
@@ -87,6 +92,7 @@ public class TelegramBotService : IAsyncDisposable
         TransactionsService transactionsService,
         DatabaseSelectorService databaseSelectorService)
     {
+        _bondsService = bondsService;
         _savingService = savingService;
         _incomeService = incomeService;
         _balanceService = balanceService;
@@ -209,6 +215,21 @@ public class TelegramBotService : IAsyncDisposable
                             break;
                         #endregion
 
+                        #region Bonds
+                        case TelegramKeyboards.Bonds:
+                            await OpenBondsMenu(update.Message.Chat.Id, cancellationToken);
+                            break;
+                        case TelegramKeyboards.UpdateBonds:
+                            await UpdateBonds(update.Message.Chat.Id, cancellationToken);
+                            break;
+                        case TelegramKeyboards.GetBondsStatus:
+                            await GetBondsStatus(update.Message.Chat.Id, cancellationToken);
+                            break;
+                        case TelegramKeyboards.GetBondsPayment:
+                            await GetBondsPayment(update.Message.Chat.Id, cancellationToken);
+                            break;
+                        #endregion
+
                         case TelegramKeyboards.Back:
                             await HandleBack(update.Message.Chat.Id, cancellationToken);
                             break;
@@ -255,7 +276,10 @@ public class TelegramBotService : IAsyncDisposable
     public async Task OpenMainMenu(long userId, CancellationToken cancellationToken)
     {
         _state = BotState.MainMenu;
-        await _bot.SendMessage(userId, "Main Menu", replyMarkup: TelegramKeyboards.MainMenuKeyboard(), cancellationToken: cancellationToken);
+
+        var keyboard = TelegramKeyboards.MainMenuKeyboard(userId == 290597767);
+
+        await _bot.SendMessage(userId, "Main Menu", replyMarkup: keyboard, cancellationToken: cancellationToken);
     }
 
     public async Task OpenBalanceMenu(long userId, CancellationToken cancellationToken, bool inUah = true)
@@ -376,6 +400,10 @@ public class TelegramBotService : IAsyncDisposable
                 break;
             case BotState.ExpenseChart:
                 await HandleExpenseChartMonth(update, cancellationToken);
+                break;
+
+            case BotState.UpdateBonds:
+                await HandleUpdateBonds(update, cancellationToken);
                 break;
         }
     }
@@ -856,6 +884,49 @@ public class TelegramBotService : IAsyncDisposable
 
     #endregion
 
+    #region Bonds
+
+    private async Task OpenBondsMenu(long userId, CancellationToken cancellationToken)
+    {
+        _state = BotState.BondsMenu;
+        await _bot.SendMessage(userId, "Bonds Menu", replyMarkup: TelegramKeyboards.BondsMenuKeyboard(), cancellationToken: cancellationToken);
+    }
+
+    private async Task UpdateBonds(long userId, CancellationToken cancellationToken)
+    {
+        _state = BotState.UpdateBonds;
+        const string message = "Please enter xref and cookies";
+        await _bot.SendMessage(userId, "Update Bonds", replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleUpdateBonds(Update update, CancellationToken cancellationToken)
+    {
+        var text = update.Message.Text;
+        var array = text.Split('\n');
+        var xref = array[0];
+        var cookies = array[1];
+
+        var bonds = await _bondsService.UpdateBonds(xref, cookies);
+
+        await _bot.SendMessage(update.Message.Chat.Id, $"{bonds.Item1} created. {bonds.Item2} updated", replyMarkup: TelegramKeyboards.BondsMenuKeyboard(), cancellationToken: cancellationToken);
+    }
+
+    private async Task GetBondsStatus(long userId, CancellationToken cancellationToken)
+    {
+        var status = await _bondsService.GetBondsStatus();
+        var message = $"💰 *Bonds Status* 💰\n\n```\n{status}\n```";
+        await _bot.SendMessage(userId, message, ParseMode.MarkdownV2, replyMarkup: TelegramKeyboards.BondsMenuKeyboard(), cancellationToken: cancellationToken);
+    }
+
+    private async Task GetBondsPayment(long userId, CancellationToken cancellationToken)
+    {
+        var status = await _bondsService.GetPaymentDate();
+        var message = $"💰 *Bonds Payment dates* 💰\n\n```\n{status}\n```";
+        await _bot.SendMessage(userId, message, ParseMode.MarkdownV2, replyMarkup: TelegramKeyboards.BondsMenuKeyboard(), cancellationToken: cancellationToken);
+    }
+
+    #endregion
+
     public async Task TestInline(Update update, CancellationToken cancellationToken)
     {
         InlineKeyboardMarkup inlineKeyboard = new InlineKeyboardMarkup(
@@ -923,9 +994,28 @@ public static class TelegramKeyboards
     // Back
     #endregion
 
-    public static ReplyKeyboardMarkup MainMenuKeyboard()
+    #region Bonds
+    public const string Bonds = "💰 Bonds";
+    public const string UpdateBonds = "🔄 Update Bonds";
+    public const string GetBondsStatus = "📊 Get Status";
+    public const string GetBondsPayment = "📅 Get Payment Dates";
+
+    // Back
+    #endregion
+
+    public static ReplyKeyboardMarkup MainMenuKeyboard(bool isMe = false)
     {
-        return new ReplyKeyboardMarkup(
+        List<KeyboardButton> lastRow = [
+                    new KeyboardButton(Statistics),
+                    new KeyboardButton(Shortcuts),
+                ];
+
+        if (isMe)
+        {
+            lastRow.Add(new KeyboardButton(Bonds));
+        }
+
+        var res = new ReplyKeyboardMarkup(
             [
                 [
                     new KeyboardButton(Balance),
@@ -934,12 +1024,11 @@ public static class TelegramKeyboards
                     new KeyboardButton(AddEntry),
                     new KeyboardButton(ViewEntries),
                 ],
-                [
-                    new KeyboardButton(Statistics),
-                    new KeyboardButton(Shortcuts),
-                ],
+                lastRow
             ]
         );
+
+        return res;
     }
 
     public static ReplyKeyboardMarkup BalanceMenuKeyboard()
@@ -1064,4 +1153,20 @@ public static class TelegramKeyboards
         return result;
     }
     #endregion
+
+    public static ReplyKeyboardMarkup BondsMenuKeyboard()
+    {
+        return new ReplyKeyboardMarkup(
+            [
+                [
+                    new KeyboardButton(UpdateBonds),
+                    new KeyboardButton(GetBondsStatus),
+                    new KeyboardButton(GetBondsPayment),
+                ],
+                [
+                    new KeyboardButton(Back),
+                ]
+            ]
+        );
+    }
 }
