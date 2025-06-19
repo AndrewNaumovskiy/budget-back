@@ -22,6 +22,7 @@ public class ExpenseChartDto
         {"Кіно/театри/концерти","🎭"},
         {"Спорт і фітнес","🏋️"},
         {"Подорожі","✈️"},
+        {"Міжгородні","🚌"},
         {"Побутова техніка","🔌"},
         {"Меблі","🛋️"},
         {"Освіта","📚"},
@@ -42,9 +43,12 @@ public class ExpenseChartDto
 
     public ExpenseChartDto(string subCategoryName, double amount)
     {
-        Emoji = _categoryEmoji[subCategoryName];
         CategoryName = subCategoryName;
         Amount = amount;
+        if(_categoryEmoji.ContainsKey(subCategoryName))
+            Emoji = _categoryEmoji[subCategoryName];
+        else
+            Emoji = "😜";
     }
 
     public void CalculatePercentage(double total)
