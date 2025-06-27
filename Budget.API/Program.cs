@@ -1,4 +1,6 @@
+using DotNetEnv;
 using System.Text;
+using System.Diagnostics;
 using Scalar.AspNetCore;
 using Budget.API.Helpers;
 using Budget.API.Services;
@@ -8,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+
+Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +25,7 @@ builder.Services.AddTransient<ExpenseService>();
 builder.Services.AddTransient<TransferService>();
 builder.Services.AddTransient<SavingService>();
 builder.Services.AddTransient<TransactionsService>();
+builder.Services.AddTransient<BondsService>();
 builder.Services.AddTransient<AuthService>();
 
 builder.Services.AddSingleton<TelegramBotService>();
@@ -32,7 +37,7 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddPooledDbContextFactory<AdminDbContext>(options =>
 {
-    // server=localhost;database=stars;uid=root;password=admin
+    var connString = $"server={Env.GetString("DBSERVER")};database={Env.GetString("DBNAME")};uid={Env.GetString("DBUSER")};password={Env.GetString("DBPASSWORD")}";
     var serverVersion = ServerVersion.AutoDetect(connString);
     options.UseMySql(connString, serverVersion);
     options.EnableServiceProviderCaching(false);
@@ -40,7 +45,7 @@ builder.Services.AddPooledDbContextFactory<AdminDbContext>(options =>
 
 builder.Services.AddPooledDbContextFactory<BondsDbContext>(options =>
 {
-    // server=localhost;database=stars;uid=root;password=admin
+    var connString = $"server={Env.GetString("DBSERVER")};database={Env.GetString("DB_OBLIGATIONS_NAME")};uid={Env.GetString("DBUSER")};password={Env.GetString("DBPASSWORD")}";
     var serverVersion = ServerVersion.AutoDetect(connString);
     options.UseMySql(connString, serverVersion);
     options.EnableServiceProviderCaching(false);
@@ -67,7 +72,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                         ValidateAudience = false,
                         ValidateLifetime = true,
                         ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(""))
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Env.GetString("JWT_SINGHING_KEY")))
                     };
 
                     options.Events = new JwtBearerEvents

@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using DotNetEnv;
+using System.Text;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.IdentityModel.Tokens.Jwt;
@@ -37,7 +38,7 @@ public class AuthService
 
     public string GenerateJwtToken(UserDbModel user)
     {
-        var key = Encoding.UTF8.GetBytes("");
+        var key = Encoding.UTF8.GetBytes(Env.GetString("JWT_SINGHING_KEY"));
         var tokenHandler = new JwtSecurityTokenHandler();
         var tokenDescriptor = new SecurityTokenDescriptor
         {

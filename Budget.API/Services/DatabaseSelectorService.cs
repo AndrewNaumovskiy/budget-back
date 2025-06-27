@@ -1,4 +1,5 @@
-﻿using Budget.API.Helpers;
+﻿using DotNetEnv;
+using Budget.API.Helpers;
 using Budget.API.Models.DbModels.Admin;
 using Microsoft.EntityFrameworkCore;
 
@@ -53,7 +54,7 @@ public class DatabaseSelectorService
 
     private DbContextOptions<BudgetDbContext> CreateOptions(string databaseName)
     {
-
+        var connString = $"server={Env.GetString("DBSERVER")};database={databaseName};uid={Env.GetString("DBUSER")};password={Env.GetString("DBPASSWORD")}";
         var builder = new DbContextOptionsBuilder<BudgetDbContext>();
 
         if (_server == null)
