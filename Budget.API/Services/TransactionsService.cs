@@ -60,9 +60,28 @@ public class TransactionsService
             if (dbTransaction == null)
                 return false;
 
-            db.Transactions.Remove(dbTransaction);
-            // TODO: update balance of rest of the transactions
+            var transactions = await db.Transactions.Where(x => x.AccountId == dbTransaction.AccountId)
+                                                    .Where(x => x.Date >= dbTransaction.Date)
+                                                    .OrderBy(x => x.Date)
+                                                    .ToListAsync();
 
+            foreach (var transaction in transactions)
+            {
+                if (transaction.Id == dbTransaction.Id)
+                    continue;
+
+                if(dbTransaction.Type == TransactionType.Expense)
+                {
+                    transaction.BalanceAfterTransaction += dbTransaction.Amount;
+                }
+                else if(dbTransaction.Type == TransactionType.Income)
+                {
+                    transaction.BalanceAfterTransaction -= dbTransaction.Amount;
+                }
+            }
+
+            db.Transactions.Remove(dbTransaction);
+            
             await db.SaveChangesAsync();
         }
         return true;

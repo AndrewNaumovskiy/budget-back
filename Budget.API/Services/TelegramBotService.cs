@@ -3,8 +3,8 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
-using System.Globalization;
 using System.Diagnostics;
+using System.Globalization;
 using Budget.API.Models.RequestModels;
 
 namespace Budget.API.Services;
@@ -40,6 +40,7 @@ public enum BotState
     EnterTransferDesc,
 
     ViewExpenses,
+    ApproveTransactionDelete,
 
     OpenStatistics,
     Summary,
@@ -81,6 +82,8 @@ public class TelegramBotService : IAsyncDisposable
 
     private int _summaryYear;
     private int _summaryMonth;
+
+    private int _transactionIdToDelete;
 
     public TelegramBotService(
         BondsService bondsService,
@@ -126,7 +129,6 @@ public class TelegramBotService : IAsyncDisposable
             new[]
             {
                 new BotCommand { Command = "/main", Description = "Go to main menu" },
-                new BotCommand { Command = "/meow", Description = "Meowing" }
             },
             cancellationToken: cts.Token);
 
@@ -135,7 +137,18 @@ public class TelegramBotService : IAsyncDisposable
 
     async Task HandleMessages(ITelegramBotClient _, Update update, CancellationToken cancellationToken)
     {
-        if (!_databaseSelectorService.CheckUser(update.Message.Chat.Id))
+        long userId = 0;
+
+        if(update.Message != null)
+        {
+            userId = update.Message.Chat.Id;
+        }
+        else if(update.CallbackQuery != null)
+        {
+            userId = update.CallbackQuery.Message.Chat.Id;
+        }
+
+        if (!_databaseSelectorService.CheckUser(userId))
         {
             Debug.WriteLine($"User {update.Message.Chat.Id} is not allowed");
             await _bot.SendMessage(update.Message.Chat.Id, "You are not allowed to use this bot", cancellationToken: cancellationToken);
@@ -150,10 +163,6 @@ public class TelegramBotService : IAsyncDisposable
                     {
                         case "/main":
                             await OpenMainMenu(update.Message.Chat.Id, cancellationToken);
-                            break;
-
-                        case "/meow":
-                            await TestInline(update, cancellationToken);
                             break;
 
                         #region MainMenu
@@ -241,14 +250,23 @@ public class TelegramBotService : IAsyncDisposable
                     break;
                 }
             case UpdateType.CallbackQuery:
-                string codeOfButton = update.CallbackQuery.Data;
-                if(codeOfButton == "btn1")
                 {
-                    await _bot.SendMessage(chatId: update.CallbackQuery.Message.Chat.Id, "ti sho knipku 1 nazhav?", cancellationToken: cancellationToken);
+                    string codeOfButton = update.CallbackQuery.Data;
+                    if(codeOfButton.StartsWith("edit_"))
+                    {
+
+                    }
+                    else if(codeOfButton.StartsWith("delete_"))
+                    {
+                        await HandleTransactionDelete(update, cancellationToken);
+                    }
                 }
-                else if(codeOfButton == "btn2")
-                {
-                    InlineKeyboardMarkup inlineKeyBoard = new InlineKeyboardMarkup(
+                break;
+        }
+    }
+
+    /*
+    InlineKeyboardMarkup inlineKeyBoard = new InlineKeyboardMarkup(
                         new[]
                         {
                             // first row
@@ -261,11 +279,8 @@ public class TelegramBotService : IAsyncDisposable
                             },
                         });
 
-                    await _bot.EditMessageText(update.CallbackQuery.Message.Chat.Id, update.CallbackQuery.Message.MessageId, "button2", replyMarkup: inlineKeyBoard);
-                }
-                break;
-        }
-    }
+    await _bot.EditMessageText(update.CallbackQuery.Message.Chat.Id, update.CallbackQuery.Message.MessageId, "button2", replyMarkup: inlineKeyBoard);
+    */
 
     async Task HandleError(ITelegramBotClient _, Exception exception, CancellationToken cancellationToken)
     {
@@ -404,6 +419,10 @@ public class TelegramBotService : IAsyncDisposable
 
             case BotState.UpdateBonds:
                 await HandleUpdateBonds(update, cancellationToken);
+                break;
+
+            case BotState.ApproveTransactionDelete:
+                await HandleApprovedTransactionDelete(update, cancellationToken);
                 break;
         }
     }
@@ -768,6 +787,8 @@ public class TelegramBotService : IAsyncDisposable
     }
     #endregion
 
+    #region ViewExpenses
+
     private async Task OpenViewExpensesMenu(long userId, CancellationToken cancellationToken)
     {
         _state = BotState.ViewExpenses;
@@ -775,18 +796,44 @@ public class TelegramBotService : IAsyncDisposable
         var (_, dbOptions) = _databaseSelectorService.GetUserDatabase(userId);
         var expenses = await _expensesService.GetExpenses(dbOptions, 5);
         
-        var message = "📝 *Recent Expenses* 📝\n\n";
+        var message = "📝 *Recent Expenses* 📝";
         await _bot.SendMessage(userId, message, parseMode: ParseMode.Markdown, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
         
         CultureInfo culture = new CultureInfo("uk-UA");
         foreach (var expense in expenses)
         {
-            string temp = $"💸 *Amount*: `{expense.Amount.ToString("C", culture)}`\n\n📂 *Category*: `{expense.CategoryName}`\n\n🏦 *Account*: `{expense.AccountName}`\n\n📝 *Description*: `{expense.Description}`\n\n💰 *Balance*: `{expense.Balance.ToString("C", culture)}`";
-            await _bot.SendMessage(userId, temp, parseMode: ParseMode.Markdown, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+            string content = $"💸 *Amount*: `{expense.Amount.ToString("C", culture)}`\n\n📂 *Category*: `{expense.CategoryName}`\n\n🏦 *Account*: `{expense.AccountName}`\n\n📝 *Description*: `{expense.Description}`\n\n💰 *Balance*: `{expense.Balance.ToString("C", culture)}`";
+            var keyboard = TelegramKeyboards.RecentExpensesInlineKeyboard(expense.Id);
+            await _bot.SendMessage(userId, content, parseMode: ParseMode.Markdown, replyMarkup: keyboard, cancellationToken: cancellationToken);
         }
 
         await _bot.SendMessage(userId, "LOAD MORE?!", parseMode: ParseMode.Markdown, replyMarkup: TelegramKeyboards.ViewExpensesMenuKeyboard(), cancellationToken: cancellationToken);
     }
+
+    private async Task HandleTransactionDelete(Update update, CancellationToken cancellationToken)
+    {
+        _state = BotState.ApproveTransactionDelete;
+
+        _transactionIdToDelete = int.Parse(update.CallbackQuery.Data.Replace("delete_", ""));
+
+        const string msg = "Are you sure you want to delete this transaction? This action cannot be undone. (y, yes, +)";
+        await _bot.SendMessage(update.CallbackQuery.Message.Chat.Id, msg, replyMarkup: new ReplyKeyboardRemove(), cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleApprovedTransactionDelete(Update update, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string> approveMgs = new List<string> { "y", "yes", "+" };
+
+        if (approveMgs.Contains(update.Message.Text.ToLower()))
+        {
+            var (_, dbOptions) = _databaseSelectorService.GetUserDatabase(update.Message.Chat.Id);
+            await _transactionsService.DeleteTransaction(_transactionIdToDelete, dbOptions);
+        }
+
+        await OpenViewEntriesMenu(update.Message.Chat.Id, cancellationToken);
+    }
+
+    #endregion
 
     private async Task OpenStatisticsMenu(long userId, CancellationToken cancellationToken)
     {
@@ -926,29 +973,6 @@ public class TelegramBotService : IAsyncDisposable
     }
 
     #endregion
-
-    public async Task TestInline(Update update, CancellationToken cancellationToken)
-    {
-        InlineKeyboardMarkup inlineKeyboard = new InlineKeyboardMarkup(
-            // keyboard
-            new[]
-            {
-                // first row
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData(text: "Button1", callbackData: "btn1"),
-                    InlineKeyboardButton.WithCallbackData(text: "Button2", callbackData: "btn2"),
-                },
-                // second row
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData(text: "Button3", callbackData: "meow")
-                }
-            }
-        );
-
-        var message = await _bot.SendMessage(update.Message.Chat.Id, text: "testing", replyMarkup: inlineKeyboard, cancellationToken: cancellationToken);
-    }
 
     public async ValueTask DisposeAsync()
     {
@@ -1094,6 +1118,35 @@ public static class TelegramKeyboards
         );
     }
 
+    public static InlineKeyboardMarkup RecentExpensesInlineKeyboard(int transactionId)
+    {
+        return new InlineKeyboardMarkup(
+            [
+                // first row
+                [
+                    InlineKeyboardButton.WithCallbackData(text: "Edit", callbackData: $"edit_{transactionId}"),
+                    InlineKeyboardButton.WithCallbackData(text: "Delete", callbackData: $"delete_{transactionId}"),
+                ]
+            ]
+        );
+    }
+
+    /*
+    new[]
+            {
+                // first row
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData(text: "Button1", callbackData: "btn1"),
+                    InlineKeyboardButton.WithCallbackData(text: "Button2", callbackData: "btn2"),
+                },
+                // second row
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData(text: "Button3", callbackData: "meow")
+                }
+            }
+    */
     public static ReplyKeyboardMarkup StatisticsMenuKeyboard()
     {
         return new ReplyKeyboardMarkup(
